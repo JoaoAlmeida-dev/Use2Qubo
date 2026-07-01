@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.tzi.use.plugin</groupId>
+  <artifactId>use2qubo</artifactId>
+  <name>USE2QUBO Plugin</name>
+  <version>1.0.0</version>
+  <description>USE OCL plugin that derives a QUBO Q-matrix from OCL invariants,
+    applying AutoQUBO sampling directly against USE's built-in OCL evaluator.</description>
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.3.0</version>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>org.tzi.use.plugin.use2qubo.use2quboPlugin</mainClass>
+              <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.5.1</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <shadedArtifactAttached>false</shadedArtifactAttached>
+              <artifactSet>
+                <includes>
+                  <include>com.google.code.gson:gson</include>
+                </includes>
+              </artifactSet>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+  <dependencies>
+    <dependency>
+      <groupId>org.tzi.use</groupId>
+      <artifactId>use-core</artifactId>
+      <version>${use.version}</version>
+      <scope>system</scope>
+      <systemPath>${project.basedir}/lib/use-core-${use.version}.jar</systemPath>
+    </dependency>
+    <dependency>
+      <groupId>org.tzi.use</groupId>
+      <artifactId>use-gui</artifactId>
+      <version>${use.version}</version>
+      <scope>system</scope>
+      <systemPath>${project.basedir}/lib/use-gui.jar</systemPath>
+    </dependency>
+  </dependencies>
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.target>11</maven.compiler.target>
+    <maven.compiler.source>11</maven.compiler.source>
+    <use.version>7.5.0</use.version>
+  </properties>
+</project>

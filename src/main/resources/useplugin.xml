@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="org.tzi.use.plugin.use2qubo"
+        name="USE2QUBO"
+        version="1.0.0"
+        publisher="João Almeida"
+        class="org.tzi.use.plugin.use2qubo.use2quboPlugin">
+  <actions>
+    <action id="org.tzi.use.plugin.use2qubo.action.DeriveQuboAction"
+            label="Derive QUBO Matrix"
+            class="org.tzi.use.plugin.use2qubo.action.DeriveQuboAction"
+            menu="Plugins"
+            menuitem="Derive QUBO Matrix"
+            tooltip="Derive QUBO Q-matrix coefficients from current system state and export to qubo_matrix.json"/>
+    <action id="org.tzi.use.plugin.use2qubo.action.EditQuboConfigAction"
+            label="Edit QUBO Config"
+            class="org.tzi.use.plugin.use2qubo.action.EditQuboConfigAction"
+            menu="Plugins"
+            menuitem="Edit QUBO Config"
+            tooltip="Open form editor for export_config.json (objective, decision variables, minimise flag)"/>
+  </actions>
+</plugin>

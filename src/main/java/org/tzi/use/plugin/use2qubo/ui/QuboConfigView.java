@@ -1,0 +1,250 @@
+package org.tzi.use.plugin.use2qubo.ui;
+
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.io.File;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.swing.BorderFactory;
+import javax.swing.DefaultListModel;
+import javax.swing.JButton;
+import javax.swing.JCheckBox;
+import javax.swing.JInternalFrame;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+
+import org.tzi.use.gui.views.View;
+import org.tzi.use.parser.ocl.OCLCompiler;
+import org.tzi.use.plugin.use2qubo.qubo.QuboConfig;
+import org.tzi.use.plugin.use2qubo.util.PluginLog;
+import org.tzi.use.plugin.use2qubo.util.SimpleJsonWriter;
+import org.tzi.use.uml.mm.MModel;
+import org.tzi.use.uml.ocl.expr.Expression;
+import org.tzi.use.uml.ocl.value.VarBindings;
+
+public class QuboConfigView extends JPanel implements View {
+
+    private final JTextField objectiveField = new JTextField(50);
+    private final JCheckBox minimiseBox = new JCheckBox("Minimise", true);
+    private final DefaultListModel<String> listModel = new DefaultListModel<>();
+    private final MModel model;
+
+    public QuboConfigView(File configFile, MModel model) {
+        this.model = model;
+        setLayout(new BorderLayout(4, 4));
+        add(buildFilePathPanel(configFile), BorderLayout.NORTH);
+        add(buildFormPanel(), BorderLayout.CENTER);
+        add(buildButtonPanel(configFile), BorderLayout.SOUTH);
+        prefill(configFile);
+    }
+
+    private JPanel buildFilePathPanel(File configFile) {
+        JPanel panel = new JPanel(new BorderLayout(6, 0));
+        panel.setBorder(BorderFactory.createEmptyBorder(6, 8, 2, 8));
+        JTextField pathField = new JTextField(configFile.getAbsolutePath());
+        pathField.setEditable(false);
+        pathField.setBackground(UIManager.getColor("Panel.background"));
+        pathField.setFont(pathField.getFont().deriveFont(Font.PLAIN, 11f));
+        panel.add(new JLabel("Config file: "), BorderLayout.WEST);
+        panel.add(pathField, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel buildFormPanel() {
+        JLabel validateStatus = new JLabel(" ");
+
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBorder(BorderFactory.createEmptyBorder(8, 8, 4, 8));
+        GridBagConstraints lc = new GridBagConstraints();
+        lc.anchor = GridBagConstraints.WEST;
+        lc.insets = new Insets(4, 4, 4, 8);
+        GridBagConstraints fc = new GridBagConstraints();
+        fc.fill = GridBagConstraints.HORIZONTAL;
+        fc.weightx = 1.0;
+        fc.insets = new Insets(4, 0, 4, 4);
+
+        objectiveField.setToolTipText(
+                "OCL expression evaluated over the system state. "
+                + "Example: Truck.allInstances()->collect(t | t.load)->sum()");
+
+        JButton validateBtn = new JButton("Validate OCL");
+        validateBtn.addActionListener(e -> validateOcl(validateStatus));
+
+        // Row 0: label + [objectiveField | validateBtn]
+        int row = 0;
+        lc.gridy = row; lc.gridx = 0;
+        panel.add(new JLabel("Objective OCL:"), lc);
+
+        JPanel objRow = new JPanel(new BorderLayout(4, 0));
+        objRow.add(objectiveField, BorderLayout.CENTER);
+        objRow.add(validateBtn, BorderLayout.EAST);
+        fc.gridy = row; fc.gridx = 1;
+        panel.add(objRow, fc);
+        row++;
+
+        // Row 1: OCL validation status (spans col 1)
+        GridBagConstraints sc = new GridBagConstraints();
+        sc.gridx = 1; sc.gridy = row;
+        sc.fill = GridBagConstraints.HORIZONTAL;
+        sc.weightx = 1.0;
+        sc.insets = new Insets(0, 0, 4, 4);
+        panel.add(validateStatus, sc);
+        row++;
+
+        // Row 2: minimise checkbox
+        minimiseBox.setToolTipText(
+                "Checked: minimise objective (cost minimisation). "
+                + "Unchecked: maximise objective (negated before QUBO encoding).");
+        lc.gridy = row; fc.gridy = row;
+        lc.gridx = 0;  fc.gridx = 1;
+        panel.add(new JLabel("Minimise:"), lc);
+        panel.add(minimiseBox, fc);
+        row++;
+
+        // Row 3: association list
+        lc.gridy = row; lc.anchor = GridBagConstraints.NORTHWEST;
+        panel.add(new JLabel("Decision-var associations:"), lc);
+
+        JList<String> assocList = new JList<>(listModel);
+        assocList.setToolTipText("Names of UML associations whose links are binary decision variables.");
+        assocList.setVisibleRowCount(6);
+        JScrollPane scroll = new JScrollPane(assocList);
+
+        JButton addBtn = new JButton("Add");
+        addBtn.setToolTipText("Association name must match exactly the .use model association name.");
+        addBtn.addActionListener(e -> {
+            String name = JOptionPane.showInputDialog(QuboConfigView.this,
+                    "Association name:", "Add Decision Variable", JOptionPane.PLAIN_MESSAGE);
+            if (name != null && !name.trim().isEmpty()) listModel.addElement(name.trim());
+        });
+
+        JButton removeBtn = new JButton("Remove");
+        removeBtn.addActionListener(e -> {
+            int idx = assocList.getSelectedIndex();
+            if (idx >= 0) listModel.remove(idx);
+        });
+
+        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        btnRow.add(addBtn);
+        btnRow.add(removeBtn);
+
+        JPanel listPanel = new JPanel(new BorderLayout(0, 4));
+        listPanel.add(scroll, BorderLayout.CENTER);
+        listPanel.add(btnRow, BorderLayout.SOUTH);
+
+        GridBagConstraints lpc = new GridBagConstraints();
+        lpc.gridx = 1; lpc.gridy = row;
+        lpc.fill = GridBagConstraints.BOTH;
+        lpc.weightx = 1.0; lpc.weighty = 1.0;
+        lpc.insets = new Insets(4, 0, 4, 4);
+        panel.add(listPanel, lpc);
+
+        return panel;
+    }
+
+    private void validateOcl(JLabel statusLabel) {
+        String expr = objectiveField.getText().trim();
+        if (expr.isEmpty()) {
+            statusLabel.setText("✗ Expression is empty");
+            statusLabel.setForeground(Color.RED);
+            return;
+        }
+        StringWriter errWriter = new StringWriter();
+        Expression compiled = OCLCompiler.compileExpression(
+                model, expr, "validate", new PrintWriter(errWriter), new VarBindings());
+        if (compiled != null) {
+            statusLabel.setText("✓ Valid");
+            statusLabel.setForeground(new Color(0, 140, 0));
+        } else {
+            String msg = errWriter.toString().trim();
+            statusLabel.setText("✗ " + (msg.isEmpty() ? "Compilation error" : msg));
+            statusLabel.setForeground(Color.RED);
+        }
+    }
+
+    private JPanel buildButtonPanel(File configFile) {
+        JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 6));
+
+        JButton save = new JButton("Save");
+        save.addActionListener(e -> {
+            save.setEnabled(false);
+            try {
+                doSave(configFile);
+                PluginLog.info("QUBO config saved to " + configFile.getAbsolutePath());
+                JOptionPane.showMessageDialog(QuboConfigView.this,
+                        "Saved to:\n" + configFile.getAbsolutePath(),
+                        "Edit QUBO Config", JOptionPane.INFORMATION_MESSAGE);
+            } catch (IOException ex) {
+                PluginLog.error("Failed to save config", ex);
+                JOptionPane.showMessageDialog(QuboConfigView.this,
+                        "Failed to save:\n" + ex.getMessage(),
+                        "Save Error", JOptionPane.ERROR_MESSAGE);
+            } finally {
+                save.setEnabled(true);
+            }
+        });
+
+        JButton close = new JButton("Close");
+        close.addActionListener(e ->
+                ((JInternalFrame) SwingUtilities.getAncestorOfClass(JInternalFrame.class, QuboConfigView.this)).dispose());
+
+        panel.add(save);
+        panel.add(close);
+        return panel;
+    }
+
+    private void prefill(File configFile) {
+        if (!configFile.exists()) return;
+        try {
+            String raw = new String(Files.readAllBytes(configFile.toPath()), StandardCharsets.UTF_8);
+            QuboConfig cfg = QuboConfig.parse(raw);
+            objectiveField.setText(cfg.objectiveExpr != null ? cfg.objectiveExpr : "");
+            minimiseBox.setSelected(cfg.minimise);
+            cfg.decisionVarAssocs.forEach(listModel::addElement);
+        } catch (IOException e) {
+            PluginLog.warn("Could not pre-fill from config file", e);
+        }
+    }
+
+    private void doSave(File configFile) throws IOException {
+        List<String> assocNames = new ArrayList<>();
+        for (int i = 0; i < listModel.getSize(); i++) {
+            assocNames.add(listModel.getElementAt(i));
+        }
+        String expr = objectiveField.getText().trim();
+        boolean minimise = minimiseBox.isSelected();
+
+        SimpleJsonWriter w = new SimpleJsonWriter();
+        w.objectOpen();
+        w.linkArray("decision_var_associations", assocNames, true);
+        w.key("decision_vars").arrayOpen().arrayClose(true);
+        w.key("objective").objectOpen();
+        w.keyValue("expression", expr, true);
+        w.keyValue("minimise", minimise, false);
+        w.objectClose(true);
+        w.keyValue("objective_weight", 1, false);
+        w.objectClose(false);
+
+        Files.write(configFile.toPath(), w.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    @Override
+    public void detachModel() {}
+}

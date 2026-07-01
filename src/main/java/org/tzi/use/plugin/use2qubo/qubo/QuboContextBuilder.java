@@ -1,0 +1,115 @@
+package org.tzi.use.plugin.use2qubo.qubo;
+
+import org.tzi.use.plugin.use2qubo.util.PluginLog;
+import org.tzi.use.uml.mm.MAssociation;
+import org.tzi.use.uml.mm.MClassInvariant;
+import org.tzi.use.uml.mm.MModel;
+import org.tzi.use.uml.sys.*;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import java.util.*;
+import java.util.stream.Collectors;
+
+public class QuboContextBuilder {
+
+    public static QuboContext build(MSystem system) throws IOException {
+        File configFile = QuboConfigPaths.resolveConfigFile(system);
+        PluginLog.info("Resolved config path: " + configFile);
+        return build(system, configFile.toPath());
+    }
+
+    public static QuboContext build(MSystem system, Path configPath) throws IOException {
+        PluginLog.info("Loading export_config.json from: " + configPath);
+        String raw = new String(Files.readAllBytes(configPath), StandardCharsets.UTF_8);
+        QuboConfig config = QuboConfig.parse(raw);
+        PluginLog.info("Config parsed: " + config.dvEntries.size()
+                + " decision-var entries, objective minimise=" + config.minimise);
+
+        MModel model = system.model();
+        MSystemState state = system.state();
+
+        List<MClassInvariant> invariants = new ArrayList<>(model.classInvariants());
+        PluginLog.info("Model invariants: " + invariants.size());
+
+        Map<String, List<MObject>> objectsByClass = buildObjectsByClass(state);
+        PluginLog.debug("Objects by class: " + objectsByClass.keySet());
+
+        Map<String, List<MLink>> fixedLinks = buildFixedLinks(model, state, config);
+        PluginLog.debug("Fixed-link associations: " + fixedLinks.size());
+
+        List<DecisionVar> decisionVars = buildDecisionVars(config, objectsByClass);
+
+        int nVars = computeNVars(decisionVars, objectsByClass);
+        PluginLog.info("Context ready: nVars=" + nVars + ", decisionVars=" + decisionVars.size());
+
+        return new QuboContext(system, model, state, invariants, objectsByClass,
+                fixedLinks, decisionVars, nVars, config.objectiveExpr, config.minimise);
+    }
+
+    // ------------------------------------------------------------------
+
+    private static Map<String, List<MObject>> buildObjectsByClass(MSystemState state) {
+        Map<String, List<MObject>> map = new LinkedHashMap<>();
+        for (MObject obj : state.allObjects()) {
+            map.computeIfAbsent(obj.cls().name(), k -> new ArrayList<>()).add(obj);
+        }
+        for (List<MObject> list : map.values()) {
+            list.sort(Comparator.comparing(MObject::name));
+        }
+        return map;
+    }
+
+    private static Map<String, List<MLink>> buildFixedLinks(MModel model,
+                                                             MSystemState state,
+                                                             QuboConfig config) {
+        Map<String, List<MLink>> map = new LinkedHashMap<>();
+        for (MAssociation assoc : sortedAssocs(model.associations())) {
+            if (config.isDecisionVar(assoc.name())) continue;
+            MLinkSet linkSet = state.linksOfAssociation(assoc);
+            if (linkSet.size() == 0) continue;
+            List<MLink> sorted = linkSet.links().stream()
+                    .sorted(Comparator.comparing(l ->
+                            l.linkedObjects().stream()
+                                    .map(MObject::name)
+                                    .collect(Collectors.joining(","))))
+                    .collect(Collectors.toList());
+            map.put(assoc.name(), sorted);
+        }
+        return map;
+    }
+
+    private static List<DecisionVar> buildDecisionVars(QuboConfig config,
+                                                        Map<String, List<MObject>> objectsByClass) {
+        List<DecisionVar> result = new ArrayList<>();
+        for (String[] entry : config.dvEntries) {
+            String type    = entry[0];
+            String assoc   = entry[1];
+            String classA  = entry[2];
+            String classB  = entry[3];
+            List<MObject> domain = objectsByClass.getOrDefault(classA, Collections.emptyList());
+            result.add(new DecisionVar(type, assoc, classA, classB, domain));
+        }
+        return result;
+    }
+
+    private static int computeNVars(List<DecisionVar> decisionVars,
+                                     Map<String, List<MObject>> objectsByClass) {
+        int total = 0;
+        for (DecisionVar dv : decisionVars) {
+            int bCount = objectsByClass.getOrDefault(dv.classB, Collections.emptyList()).size();
+            total += dv.domain.size() * bCount;
+        }
+        return total;
+    }
+
+    private static List<MAssociation> sortedAssocs(Collection<MAssociation> assocs) {
+        return assocs.stream()
+                .sorted(Comparator.comparing(MAssociation::name))
+                .collect(Collectors.toList());
+    }
+}
