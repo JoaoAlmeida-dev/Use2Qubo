@@ -23,6 +23,11 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import org.tzi.use.gui.views.View;
 import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
 import org.tzi.use.plugin.use2qubo.qubo.QuboResultExporter;
+import org.tzi.use.plugin.use2qubo.ui.tabs.ExactnessTabPanel;
+import org.tzi.use.plugin.use2qubo.ui.tabs.MatrixTabPanel;
+import org.tzi.use.plugin.use2qubo.ui.tabs.QuboGraphPanel;
+import org.tzi.use.plugin.use2qubo.ui.tabs.SamplingTabPanel;
+import org.tzi.use.plugin.use2qubo.ui.tabs.TermsTabPanel;
 import org.tzi.use.plugin.use2qubo.util.PluginLog;
 
 public class QuboMatrixView extends JPanel implements View {
@@ -36,6 +41,7 @@ public class QuboMatrixView extends JPanel implements View {
         tabs.addTab("Terms", new TermsTabPanel(result));
         tabs.addTab("Graph", new QuboGraphPanel(result));
         tabs.addTab("Sampling", new SamplingTabPanel(result));
+        tabs.addTab("Exactness", new ExactnessTabPanel(result));
         add(tabs, BorderLayout.CENTER);
 
         add(buildButtonPanel(result), BorderLayout.SOUTH);

@@ -9,7 +9,7 @@ Wire JAVA-001 + JAVA-002 + JAVA-003 into a Swing plugin action. User clicks "Plu
 **In scope:**
 - New `DeriveQuboAction` class implementing `IPluginActionDelegate`
 - Menu registration in `use2quboPlugin` alongside existing "Export Instance"
-- Guards: model loaded + non-empty system state + `export_config.json` present
+- Guards: model loaded + non-empty system state + `qubo_config.json` present
 - Progress dialog or status bar message during derivation (optional for POC)
 - Error dialog on failure (invariant eval error, write error)
 
@@ -32,11 +32,11 @@ public class DeriveQuboAction implements IPluginActionDelegate {
             return;
         }
 
-        // Locate export_config.json next to the .use file
+        // Locate qubo_config.json next to the .use file
         Path configPath = resolveConfig(system);
         if (configPath == null || !Files.exists(configPath)) {
             JOptionPane.showMessageDialog(null,
-                "export_config.json not found next to .use file. " +
+                "qubo_config.json not found next to .use file. " +
                 "Add decision_vars and objective before deriving QUBO.");
             return;
         }
@@ -83,7 +83,7 @@ Consult USE plugin API for exact action registration method (may differ from abo
 
 1. "Derive QUBO" appears in Plugins menu alongside "Export Instance"
 2. Without loaded model: error dialog shown, no crash
-3. Without `export_config.json`: informative error dialog
+3. Without `qubo_config.json`: informative error dialog
 4. With valid state: `qubo.json` written; dialog shows n_vars=18, exact=true for GarbageTruckRouting scenario
 5. `qubo.json` passes JAVA-003 schema check
 

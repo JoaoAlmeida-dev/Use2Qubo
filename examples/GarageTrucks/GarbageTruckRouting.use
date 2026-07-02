@@ -50,7 +50,7 @@ end
 -- Association Classes
 -- ===========================================================
 
--- Directed road segment between two city nodes.
+-- Directed road segment between two nodes.
 -- travelTime is the weight (minutes) to traverse this road.
 associationclass Road between
   Node[*] role origin
@@ -204,42 +204,6 @@ context Route
   inv nonNegativeTravelTime:
     self.totalTravelTime >= 0
 
-  -- Every consecutive stop pair must be linked by a Road segment.
-  -- Expressed via RouteStop.step so the constraint is derivable from the
-  -- binary decision variables rather than from insertion order.
-  -- Capacity and fuel constraints (truckCapacityNotExceeded,
-  -- truckFuelNotExceeded) operate on Real-valued attributes and are not
-  -- directly encodable in the QUBO Q matrix; they are verified post-solve.
-  --
-  -- inv consecutiveStopsConnected:
-  --   RouteStop.allInstances->select(rs | rs.routes = self)->forAll(rs |
-  --     rs.step < self.stops->size() - 1 implies
-  --     Road.allInstances->exists(road |
-  --       road.origin = rs.stops and
-  --       road.destination =
-  --         RouteStop.allInstances->any(
-  --           rs2 | rs2.routes = self and rs2.step = rs.step + 1).stops))
-  --
-  -- (Commented out: requires link-object navigation rs.stops from RouteStop;
-  --  verify with target USE version before enabling.)
-
-  -- Consistency guard: totalTravelTime must equal the sum of Road.travelTime
-  -- values across consecutive RouteStop pairs.
-  -- The objective OCL expression in export_config.json derives this sum
-  -- directly from RouteStop.step and Road.travelTime without using this
-  -- attribute, making the QUBO cost coefficients independent of manually
-  -- set values.
-  --
-  -- inv travelTimeConsistent:
-  --   let n = self.stops->size() in
-  --   Sequence{1..n-1}->iterate(i : Integer; acc : Real = 0.0 |
-  --     acc + Road.allInstances->select(
-  --       r | r.origin = self.stops->at(i) and
-  --           r.destination = self.stops->at(i+1))->first().travelTime)
-  --   = self.totalTravelTime
-  --
-  -- (Commented out: USE OCL does not support integer range literals
-  --  in ->iterate directly; verify with target USE version before enabling.)
 
 -- -----------------------------------------------------------
 -- Truck operation pre/postconditions

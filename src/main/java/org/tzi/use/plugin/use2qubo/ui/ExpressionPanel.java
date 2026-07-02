@@ -18,9 +18,9 @@ import javax.swing.JTextArea;
 import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
 
 /** Renders the QUBO polynomial as a readable algebraic expression, with copy-to-clipboard. */
-class ExpressionPanel extends JPanel {
+public class ExpressionPanel extends JPanel {
 
-    ExpressionPanel(QuboResult result) {
+    public ExpressionPanel(QuboResult result) {
         super(new BorderLayout(0, 4));
         String text = buildExpressionText(result);
 

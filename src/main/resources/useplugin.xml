@@ -3,7 +3,7 @@
         name="USE2QUBO"
         version="1.0.0"
         publisher="João Almeida"
-        class="org.tzi.use.plugin.use2qubo.use2quboPlugin">
+        class="org.tzi.use.plugin.use2qubo.Use2QuboPlugin">
   <actions>
     <action id="org.tzi.use.plugin.use2qubo.action.DeriveQuboAction"
             label="Derive QUBO Matrix"
@@ -16,6 +16,6 @@
             class="org.tzi.use.plugin.use2qubo.action.EditQuboConfigAction"
             menu="Plugins"
             menuitem="Edit QUBO Config"
-            tooltip="Open form editor for export_config.json (objective, decision variables, minimise flag)"/>
+            tooltip="Open form editor for qubo_config.json (objective, decision variables, minimise flag)"/>
   </actions>
 </plugin>

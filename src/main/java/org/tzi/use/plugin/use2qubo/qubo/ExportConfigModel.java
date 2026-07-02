@@ -3,7 +3,7 @@ package org.tzi.use.plugin.use2qubo.qubo;
 import java.util.List;
 
 /**
- * Gson deserialisation target for export_config.json. Field names match the
+ * Gson deserialisation target for qubo_config.json. Field names match the
  * JSON keys verbatim so no custom (de)serializer is needed.
  */
 class ExportConfigModel {

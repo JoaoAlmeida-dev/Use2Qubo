@@ -27,13 +27,13 @@ public class QuboContext {
     /** Fixed (non-decision-var) links grouped by association name; each list sorted. */
     public final Map<String, List<MLink>> fixedLinks;
 
-    /** Ordered decision variables from export_config.json. */
+    /** Ordered decision variables from qubo_config.json. */
     public final List<DecisionVar> decisionVars;
 
     /** Total number of binary variables = sum of |classA| * |classB| per DecisionVar. */
     public final int nVars;
 
-    /** OCL expression string from objective.expression in export_config.json. */
+    /** OCL expression string from objective.expression in qubo_config.json. */
     public final String objectiveExpr;
 
     public final boolean minimise;
@@ -63,7 +63,7 @@ public class QuboContext {
     /**
      * Returns the index of binary variable x_{a,b} in the flat decision vector.
      *
-     * Variable order: decision_vars list order from export_config.json;
+     * Variable order: decision_vars list order from qubo_config.json;
      * within each entry all (a,b) pairs sorted lexicographically by (a.name(), b.name()).
      */
     public int varIndex(String assocName, MObject a, MObject b) {

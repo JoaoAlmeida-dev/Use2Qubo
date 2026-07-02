@@ -10,28 +10,28 @@ import javax.swing.JLabel;
  * Small formatting/label helpers shared across the QUBO result view panels
  * (matrix, sampling, graph tabs) — kept here instead of duplicated per panel.
  */
-final class ViewFormatUtil {
+public final class ViewFormatUtil {
 
     private ViewFormatUtil() {}
 
-    static JLabel makeSwatch(Color c, String label) {
+    public static JLabel makeSwatch(Color c, String label) {
         JLabel l = new JLabel("■ " + label);
         l.setForeground(c);
         l.setFont(l.getFont().deriveFont(Font.BOLD));
         return l;
     }
 
-    static JLabel statLabel(String text) {
+    public static JLabel statLabel(String text) {
         JLabel l = new JLabel(text);
         l.setFont(l.getFont().deriveFont(Font.BOLD));
         return l;
     }
 
-    static String abbrev(String s) {
+    public static String abbrev(String s) {
         return s.length() > 20 ? s.substring(0, 20) + "…" : s;
     }
 
-    static String buildVectorTooltip(Object[] rowData, int n, List<String> varLabels) {
+    public static String buildVectorTooltip(Object[] rowData, int n, List<String> varLabels) {
         StringBuilder sb = new StringBuilder("<html>");
         for (int i = 0; i < n; i++) {
             Object val = rowData[2 + i];
@@ -44,7 +44,7 @@ final class ViewFormatUtil {
         return sb.toString();
     }
 
-    static String buildVectorAssignment(int[] vector, List<String> varLabels) {
+    public static String buildVectorAssignment(int[] vector, List<String> varLabels) {
         StringBuilder sb = new StringBuilder("<html>");
         for (int i = 0; i < vector.length; i++) {
             String label = i < varLabels.size() ? varLabels.get(i) : "x" + i;

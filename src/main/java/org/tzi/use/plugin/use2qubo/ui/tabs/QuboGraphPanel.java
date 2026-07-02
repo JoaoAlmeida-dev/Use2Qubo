@@ -1,4 +1,4 @@
-package org.tzi.use.plugin.use2qubo.ui;
+package org.tzi.use.plugin.use2qubo.ui.tabs;
 
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
@@ -21,6 +21,7 @@ import javax.swing.JPanel;
 import javax.swing.ToolTipManager;
 
 import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
+import org.tzi.use.plugin.use2qubo.ui.ViewFormatUtil;
 import org.tzi.use.plugin.use2qubo.util.QuboConstants;
 
 public class QuboGraphPanel extends JPanel {

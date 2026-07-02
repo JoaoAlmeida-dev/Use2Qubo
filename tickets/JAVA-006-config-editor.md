@@ -2,7 +2,7 @@
 
 ## Goal
 
-Add a "Edit QUBO Config" menu action that opens a form dialog for editing `export_config.json` fields. Eliminates the need to hand-edit JSON. Reads the existing file when present; creates it on save.
+Add a "Edit QUBO Config" menu action that opens a form dialog for editing `qubo_config.json` fields. Eliminates the need to hand-edit JSON. Reads the existing file when present; creates it on save.
 
 ## Scope
 
@@ -17,8 +17,8 @@ static File resolveConfigFile(MSystem system) throws IOException {
     String specFile = system.model().filename();
     if (specFile == null || specFile.isEmpty()) specFile = Options.specFilename;
     if (specFile == null || specFile.isEmpty())
-        throw new IOException("No .use file loaded; cannot locate export_config.json");
-    return new File(new File(specFile).getParentFile(), "export_config.json");
+        throw new IOException("No .use file loaded; cannot locate qubo_config.json");
+    return new File(new File(specFile).getParentFile(), "qubo_config.json");
 }
 ```
 
@@ -107,13 +107,13 @@ Serialise via `SimpleJsonWriter`:
         class="org.tzi.use.plugin.use2qubo.action.EditQuboConfigAction"
         menu="Plugins"
         menuitem="Edit QUBO Config"
-        tooltip="Open form editor for export_config.json (objective, decision variables, minimise flag)"/>
+        tooltip="Open form editor for qubo_config.json (objective, decision variables, minimise flag)"/>
 ```
 
 ## Acceptance Criteria
 
 - "Edit QUBO Config" appears in Plugins menu; enabled only when model loaded.
-- Dialog pre-fills all fields from existing `export_config.json` when present.
+- Dialog pre-fills all fields from existing `qubo_config.json` when present.
 - Dialog shows blank form when no config file exists.
 - "Save" writes valid JSON parseable by `QuboConfig.parse()`.
 - "Close" / cancel leaves file unchanged.

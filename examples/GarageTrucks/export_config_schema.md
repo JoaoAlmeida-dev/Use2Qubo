@@ -1,4 +1,4 @@
-# export_config.json — Field Reference
+# qubo_config.json — Field Reference
 
 Configuration file read by the `QuboEngine` plugin action "Derive QUBO Matrix".
 It tells the engine which model elements are binary decision variables, how to

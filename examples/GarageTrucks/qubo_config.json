@@ -1,6 +1,5 @@
 {
   "decision_var_associations": ["RouteStop", "AssignedTo"],
-  "penalty_method": "verma-lewis",
   "decision_vars": [
     {
       "type": "link",

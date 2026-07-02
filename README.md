@@ -7,47 +7,48 @@ A USE OCL plugin that derives a QUBO formulation from OCL constraints, supportin
 | Action | Menu item | Status |
 |--------|-----------|--------|
 | Derive QUBO from OCL invariants | Plugins → Derive QUBO Matrix | Done |
-| Edit `export_config.json` via form UI | Plugins → Edit QUBO Config | Done |
+| Edit `qubo_config.json` via form UI | Plugins → Edit QUBO Config | Done |
 
-## Prerequisites
+## How it works
 
-- Java 11+
-- Maven 3.6+
-- A checkout of [useocl/use](https://github.com/useocl/use) (USE OCL, version 7.5.0), used to obtain the `use-core` and `use-gui` JARs and, optionally, the `use-assembly` module for building a redistributable USE bundle with the plugin included
+1. **Model + constraints.** You load a `.use` model (classes, associations, OCL invariants) and an object diagram (a concrete system state) into USE, as usual.
+2. **Decision variables.** `qubo_config.json` declares which associations are binary decision variables `x_i ∈ {0,1}` (link present/absent) and which OCL expression is the objective `c(x)`. `QuboContextBuilder` reads the live `MSystem` plus this config to build an immutable `QuboContext`: the variable index, the objective expression, and the invariants to encode as penalties.
+3. **Sampling.** `QuboEngine` (AutoQUBO, Moraglio et al.) does not symbolically differentiate the OCL expression. Instead it evaluates `f(x) = c(x) + α·g(x)` — cost plus penalty-weighted constraint violations — on a small set of binary vectors (`2 + n·(n+1)` evaluations) via USE's real OCL evaluator, and fits a degree-2 polynomial `q(x)` to those samples. The penalty weight `α` is computed by the configured `penalty_method` (e.g. Verma & Lewis).
+4. **Exactness check.** Because the fit only samples `f(x)`, it can be wrong if `f` isn't actually degree-2 (see [Exactness check](#exactness-check) below). The engine re-evaluates `f` on held-out random vectors and compares against `q(x)` to catch this before you trust the result.
+5. **QUBO matrix.** The fitted coefficients become the `Q` matrix (`QuboResult`: constant, linear, quadratic terms), viewable in `QuboMatrixView` and exported to `qubo.json` (`QuboResultExporter`) for use by a QUBO/annealing solver.
 
-## Building
+## Examples
 
-### 1. Get the USE JARs
+The [examples/](examples/) directory contains ready-to-load `.use` models with matching `qubo_config.json` files:
 
-This plugin depends on `use-core` and `use-gui`, which are not published to Maven Central. Build them from the USE repo and copy them into `lib/`:
+| Example | Description |
+|---------|-------------|
+| [examples/GarageTrucks/](examples/GarageTrucks/GarbageTruckRouting.use) | Garbage truck routing model; decision variables encode route/stop assignments, objective minimises total travel time. See [export_config_schema.md](examples/GarageTrucks/export_config_schema.md) for a full field-by-field reference of `qubo_config.json`. |
+| [examples/autoquboMaxClique/](examples/autoquboMaxClique/MaxClique.use) | Max-clique model demonstrating AutoQUBO sampling on a classic combinatorial benchmark. |
 
-```bash
-git clone https://github.com/useocl/use.git
-cd use
-mvn package -pl use-core -pl use-gui
-```
+Each example folder also ships a `.cmd` file with USE console commands to load the model and populate an initial object diagram, useful for a quick smoke test after installing the plugin.
 
-Then copy the resulting JARs (or the ones from an existing USE installation's `lib/` directory) into this plugin's `lib/`. See [lib/README.md](lib/README.md) for exact filenames.
+### Example screenshots
 
-### 2. Build the plugin JAR
+**Class diagram** — a loaded `.use` model before deriving the QUBO matrix:
 
-```bash
-mvn clean package
-```
+![Example class diagram](screenshots/ExampleClassDiagram.png)
 
-Output: `target/use2qubo-1.0.0.jar`
+**Object diagram** — decision-variable instances populating the model:
 
-### 3. (Optional) Bundle into a USE distribution
+![Example object diagram](screenshots/ExampleObjectDiagram.png)
 
-To produce a redistributable USE ZIP with the plugin pre-installed, copy `target/use2qubo-1.0.0.jar` into `<use-repo>/use-assembly/src/main/resources/plugins/`, then run `mvn package -DskipTests` inside `<use-repo>/use-assembly/`. The resulting `use-7.5.0-use-bin.zip` will include this plugin.
+**QUBO config editor** — "Edit QUBO Config" form UI for `qubo_config.json`:
 
-## Installation
+![QUBO config editor](screenshots/QuboConfig.png)
 
-Copy `use2qubo-1.0.0.jar` into the `plugins/` directory of your USE installation, then restart USE. The plugin registers itself automatically via `useplugin.xml`.
+**QUBO matrix view** — "Derive QUBO Matrix" result, colour-coded Q-matrix table:
+
+![QUBO matrix view](screenshots/QuboMatrix.png)
 
 ## Configuration
 
-Place `export_config.json` in the same directory as the `.use` model file. Required fields:
+Place `qubo_config.json` in the same directory as the `.use` model file. Required fields:
 
 ```json
 {
@@ -67,35 +68,6 @@ Place `export_config.json` in the same directory as the `.use` model file. Requi
 - `decision_vars` — ordered list of variable entries used to build the flat binary vector. Variable indices are assigned in list order; within each entry, (a, b) pairs are sorted lexicographically by object name.
 - `objective` — OCL expression to optimise and direction (`minimise`/`maximise`).
 
-## Examples
-
-The [examples/](examples/) directory contains ready-to-load `.use` models with matching `export_config.json` files:
-
-| Example | Description |
-|---------|-------------|
-| [examples/GarageTrucks/](examples/GarageTrucks/GarbageTruckRouting.use) | Garbage truck routing model; decision variables encode route/stop assignments, objective minimises total travel time. See [export_config_schema.md](examples/GarageTrucks/export_config_schema.md) for a full field-by-field reference of `export_config.json`. |
-| [examples/autoquboMaxClique/](examples/autoquboMaxClique/MaxClique.use) | Max-clique model demonstrating AutoQUBO sampling on a classic combinatorial benchmark. |
-
-Each example folder also ships a `.cmd` file with USE console commands to load the model and populate an initial object diagram, useful for a quick smoke test after installing the plugin.
-
-## Screenshots
-
-**Class diagram** — a loaded `.use` model before deriving the QUBO matrix:
-
-![Example class diagram](screenshots/ExampleClassDiagram.png)
-
-**Object diagram** — decision-variable instances populating the model:
-
-![Example object diagram](screenshots/ExampleObjectDiagram.png)
-
-**QUBO config editor** — "Edit QUBO Config" form UI for `export_config.json`:
-
-![QUBO config editor](screenshots/QuboConfig.png)
-
-**QUBO matrix view** — "Derive QUBO Matrix" result, colour-coded Q-matrix table:
-
-![QUBO matrix view](screenshots/QuboMatrix.png)
-
 ## Source layout
 
 ```
@@ -105,8 +77,8 @@ src/main/java/org/tzi/use/plugin/use2qubo/
 │   ├── DeriveQuboAction.java        — "Derive QUBO Matrix" async Swing action; opens QuboMatrixView
 │   └── EditQuboConfigAction.java    — "Edit QUBO Config" Swing action; opens QuboConfigView
 ├── qubo/
-│   ├── QuboConfig.java              — parses export_config.json for QUBO pipeline
-│   ├── QuboConfigPaths.java         — resolves export_config.json path relative to loaded .use file
+│   ├── QuboConfig.java              — parses qubo_config.json for QUBO pipeline
+│   ├── QuboConfigPaths.java         — resolves qubo_config.json path relative to loaded .use file
 │   ├── DecisionVar.java             — decision-variable descriptor
 │   ├── QuboContext.java             — immutable runtime context (model, state, invariants, var index)
 │   ├── QuboContextBuilder.java      — builds QuboContext from live MSystem + config
@@ -115,7 +87,7 @@ src/main/java/org/tzi/use/plugin/use2qubo/
 │   └── QuboResultExporter.java      — writes QuboResult → qubo.json
 ├── ui/
 │   ├── QuboMatrixView.java          — colour-coded Q-matrix JTable in dockable internal window
-│   ├── QuboConfigView.java          — form editor for export_config.json in dockable internal window
+│   ├── QuboConfigView.java          — form editor for qubo_config.json in dockable internal window
 │   └── QuboGraphPanel.java          — QUBO expression graph visualiser panel (JAVA-010)
 └── util/
     ├── PluginLog.java               — wires logging to USE log panel (info/warn/error/debug)
@@ -155,3 +127,39 @@ If either assumption is violated, q(x) matches f(x) on the training points but d
 | [JAVA-008](tickets/JAVA-008-dialog-to-internal-windows.md) | Convert popup dialogs to dockable internal windows | Done |
 | [JAVA-009](tickets/JAVA-009-ui-understandability-improvements.md) | UI understandability & visualisation improvements | Done |
 | [JAVA-010](tickets/JAVA-010-qubo-expression-visualisation.md) | QUBO expression graph visualiser (`QuboGraphPanel`) | Done |
+
+## Prerequisites
+
+- Java 11+
+- Maven 3.6+
+- A checkout of [useocl/use](https://github.com/useocl/use) (USE OCL, version 7.5.0), used to obtain the `use-core` and `use-gui` JARs and, optionally, the `use-assembly` module for building a redistributable USE bundle with the plugin included
+
+## Building
+
+### 1. Get the USE JARs
+
+This plugin depends on `use-core` and `use-gui`, which are not published to Maven Central. Build them from the USE repo and copy them into `lib/`:
+
+```bash
+git clone https://github.com/useocl/use.git
+cd use
+mvn package -pl use-core -pl use-gui
+```
+
+Then copy the resulting JARs (or the ones from an existing USE installation's `lib/` directory) into this plugin's `lib/`. See [lib/README.md](lib/README.md) for exact filenames.
+
+### 2. Build the plugin JAR
+
+```bash
+mvn clean package
+```
+
+Output: `target/use2qubo-1.0.0.jar`
+
+### 3. (Optional) Bundle into a USE distribution
+
+To produce a redistributable USE ZIP with the plugin pre-installed, copy `target/use2qubo-1.0.0.jar` into `<use-repo>/use-assembly/src/main/resources/plugins/`, then run `mvn package -DskipTests` inside `<use-repo>/use-assembly/`. The resulting `use-7.5.0-use-bin.zip` will include this plugin.
+
+## Installation
+
+Copy `use2qubo-1.0.0.jar` into the `plugins/` directory of your USE installation, then restart USE. The plugin registers itself automatically via `useplugin.xml`.

@@ -7,15 +7,15 @@ import java.awt.Color;
  * white at zero, blending toward blue (positive) or red (negative) as
  * |value| approaches maxAbs.
  */
-final class CellColorScale {
+public final class CellColorScale {
 
     private static final double EPS = 1e-9;
-    private static final Color POSITIVE = new Color(100, 149, 237); // cornflower blue
-    private static final Color NEGATIVE = new Color(205, 92, 92);   // indian red
+    private static final Color POSITIVE = Color.GREEN;
+    private static final Color NEGATIVE = Color.RED;
 
     private CellColorScale() {}
 
-    static Color forValue(double v, double maxAbs) {
+    public static Color forValue(double v, double maxAbs) {
         if (v == 0.0 || maxAbs < EPS) return Color.WHITE;
         double alpha = Math.min(1.0, Math.max(0.05, Math.abs(v) / maxAbs));
         Color target = v > 0.0 ? POSITIVE : NEGATIVE;

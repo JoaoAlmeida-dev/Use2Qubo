@@ -1,19 +1,28 @@
 package org.tzi.use.plugin.use2qubo.qubo;
 
-import org.tzi.use.plugin.use2qubo.util.PluginLog;
-import org.tzi.use.uml.mm.MAssociation;
-import org.tzi.use.uml.mm.MClassInvariant;
-import org.tzi.use.uml.mm.MModel;
-import org.tzi.use.uml.sys.*;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
+
+import org.tzi.use.plugin.use2qubo.util.PluginLog;
+import org.tzi.use.uml.mm.MAssociation;
+import org.tzi.use.uml.mm.MClassInvariant;
+import org.tzi.use.uml.mm.MModel;
+import org.tzi.use.uml.sys.MLink;
+import org.tzi.use.uml.sys.MLinkSet;
+import org.tzi.use.uml.sys.MObject;
+import org.tzi.use.uml.sys.MSystem;
+import org.tzi.use.uml.sys.MSystemState;
 
 public class QuboContextBuilder {
 
@@ -24,7 +33,7 @@ public class QuboContextBuilder {
     }
 
     public static QuboContext build(MSystem system, Path configPath) throws IOException {
-        PluginLog.info("Loading export_config.json from: " + configPath);
+        PluginLog.info("Loading qubo_config.json from: " + configPath);
         String raw = new String(Files.readAllBytes(configPath), StandardCharsets.UTF_8);
         QuboConfig config = QuboConfig.parse(raw);
         PluginLog.info("Config parsed: " + config.dvEntries.size()

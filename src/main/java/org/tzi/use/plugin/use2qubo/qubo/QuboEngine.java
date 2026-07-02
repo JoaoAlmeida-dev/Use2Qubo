@@ -73,12 +73,50 @@ public class QuboEngine {
             throw new IllegalStateException(
                     "Flat var count " + flatVars.size() + " != nVars " + n);
         }
+        List<String> varLabels = buildVarLabels(flatVars);
+        Expression objExpr = compileObjective(ctx, progress);
+        Evaluator evaluator = new Evaluator();
 
-        List<String> varLabels = new ArrayList<>(n);
+        Map<String, Set<MLink>> savedLinks = saveAndStripLinks(ctx);
+        try {
+            QuboResult result = deriveWithClearedState(ctx, n, nSamples, flatVars, varLabels,
+                    objExpr, evaluator, progress, savedLinks);
+            PluginLog.info("Derive complete: " + result);
+            return result;
+        } finally {
+            restoreLinks(ctx, savedLinks);
+        }
+    }
+
+    /** Runs the sampling, combination and exactness-check steps, assuming decision-var links are already stripped. */
+    private static QuboResult deriveWithClearedState(QuboContext ctx, int n, int nSamples,
+            List<DVPair> flatVars, List<String> varLabels, Expression objExpr, Evaluator evaluator,
+            Consumer<String> progress, Map<String, Set<MLink>> savedLinks) throws Exception {
+        SamplingPass cost = sampleCostTerms(n, flatVars, ctx, evaluator, objExpr, progress);
+        double B = computePenaltyWeight(n, cost.lin, cost.quad);
+        SamplingPass penalty = samplePenaltyTerms(n, flatVars, ctx, evaluator, progress);
+        CombinedCoefficients combined = combine(n, cost, penalty, B);
+
+        restoreLinks(ctx, savedLinks);
+
+        report(progress, "Running exactness check…");
+        List<ExactnessPoint> exactnessPoints = checkExactness(n, combined.c, combined.lin,
+                combined.quad, flatVars, ctx, evaluator, objExpr, B, savedLinks);
+        boolean exact = logExactnessOutcome(exactnessPoints);
+
+        return buildResult(n, nSamples, combined, varLabels, B,
+                cost.samples, penalty.samples, exactnessPoints, exact);
+    }
+
+    private static List<String> buildVarLabels(List<DVPair> flatVars) {
+        List<String> varLabels = new ArrayList<>(flatVars.size());
         for (DVPair p : flatVars) {
             varLabels.add(p.dv.association + "(" + p.a.name() + "," + p.b.name() + ")");
         }
+        return varLabels;
+    }
 
+    private static Expression compileObjective(QuboContext ctx, Consumer<String> progress) {
         report(progress, "Compiling objective OCL…");
         StringWriter errBuf = new StringWriter();
         Expression objExpr = OCLCompiler.compileExpression(
@@ -88,10 +126,11 @@ public class QuboEngine {
             throw new IllegalStateException("Cannot parse objective OCL: " + errBuf);
         }
         PluginLog.debug("Objective OCL compiled: " + ctx.objectiveExpr);
+        return objExpr;
+    }
 
-        Evaluator evaluator = new Evaluator();
-
-        // Save and strip all decision-var links from state.
+    /** Captures all existing decision-var links, then strips them from state so sampling starts from a clean slate. */
+    private static Map<String, Set<MLink>> saveAndStripLinks(QuboContext ctx) {
         Map<String, Set<MLink>> savedLinks = new HashMap<>();
         for (DecisionVar dv : ctx.decisionVars) {
             MAssociation assoc = ctx.model.getAssociation(dv.association);
@@ -100,43 +139,24 @@ public class QuboEngine {
             savedLinks.put(dv.association, existing);
         }
         stripDecisionLinks(ctx);
+        return savedLinks;
+    }
 
-        try {
-            SamplingPass cost = sampleCostTerms(n, flatVars, ctx, evaluator, objExpr, progress);
-            double B = computePenaltyWeight(n, cost.lin, cost.quad);
-            SamplingPass penalty = samplePenaltyTerms(n, flatVars, ctx, evaluator, progress);
-
-            CombinedCoefficients combined = combine(n, cost, penalty, B);
-
-            restoreLinks(ctx, savedLinks);
-
-            report(progress, "Running exactness check…");
-            List<ExactnessPoint> exactnessPoints = checkExactness(n, combined.c, combined.lin,
-                    combined.quad, flatVars, ctx, evaluator, objExpr, B, savedLinks);
-            boolean exact = exactnessPoints.stream()
-                    .noneMatch(p -> p.evalFailed || p.error() >= EPS);
-
-            if (!exact) {
-                PluginLog.warn("QuboEngine: exactness check FAILED — q(x) ≠ f(x) on held-out points. "
-                    + "The combined objective+penalty is not representable as a degree-2 polynomial. "
-                    + "Common causes: "
-                    + "(1) An OCL invariant uses a boolean pass/fail condition — "
-                    + "reformulate by counting violations (integer sum) instead of returning true/false. "
-                    + "(2) The objective OCL expression contains interactions between 3+ decision variables "
-                    + "(e.g. a product of three link memberships) — decompose into pairwise terms.");
-            } else {
-                PluginLog.info("Exactness check: PASS");
-            }
-
-            QuboResult result = buildResult(n, nSamples, combined, varLabels, B,
-                    cost.samples, penalty.samples, exactnessPoints, exact);
-            PluginLog.info("Derive complete: " + result);
-            return result;
-
-        } catch (Exception e) {
-            restoreLinks(ctx, savedLinks);
-            throw e;
+    private static boolean logExactnessOutcome(List<ExactnessPoint> exactnessPoints) {
+        boolean exact = exactnessPoints.stream()
+                .noneMatch(p -> p.evalFailed || p.error() >= EPS);
+        if (!exact) {
+            PluginLog.warn("QuboEngine: exactness check FAILED — q(x) ≠ f(x) on held-out points. "
+                + "The combined objective+penalty is not representable as a degree-2 polynomial. "
+                + "Common causes: "
+                + "(1) An OCL invariant uses a boolean pass/fail condition — "
+                + "reformulate by counting violations (integer sum) instead of returning true/false. "
+                + "(2) The objective OCL expression contains interactions between 3+ decision variables "
+                + "(e.g. a product of three link memberships) — decompose into pairwise terms.");
+        } else {
+            PluginLog.info("Exactness check: PASS");
         }
+        return exact;
     }
 
     private static void report(Consumer<String> cb, String msg) {

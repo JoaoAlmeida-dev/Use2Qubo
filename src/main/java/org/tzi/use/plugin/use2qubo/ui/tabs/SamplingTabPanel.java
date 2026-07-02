@@ -1,18 +1,13 @@
-package org.tzi.use.plugin.use2qubo.ui;
+package org.tzi.use.plugin.use2qubo.ui.tabs;
 
-import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Font;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.util.List;
 
-import javax.swing.BorderFactory;
 import javax.swing.JLabel;
-import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.SwingConstants;
 import javax.swing.ToolTipManager;
@@ -20,19 +15,18 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
 
-import org.tzi.use.plugin.use2qubo.qubo.ExactnessPoint;
 import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
 import org.tzi.use.plugin.use2qubo.qubo.SampleRecord;
+import org.tzi.use.plugin.use2qubo.ui.ViewFormatUtil;
 
-/** "Sampling" tab: cost/penalty sample heatmap above, exactness-check table below. */
-class SamplingTabPanel extends JSplitPane {
+/** "Sampling" tab: cost/penalty sample heatmap. */
+public class SamplingTabPanel extends JScrollPane {
 
-    SamplingTabPanel(QuboResult result) {
-        super(JSplitPane.VERTICAL_SPLIT, buildHeatmapPanel(result), buildExactnessPanel(result));
-        setResizeWeight(0.6);
+    public SamplingTabPanel(QuboResult result) {
+        super(buildHeatmapTable(result));
     }
 
-    private static JScrollPane buildHeatmapPanel(QuboResult result) {
+    private static JTable buildHeatmapTable(QuboResult result) {
         int n = result.nVars;
 
         List<SampleRecord> cost    = result.costSamples;
@@ -130,91 +124,7 @@ class SamplingTabPanel extends JSplitPane {
             }
         });
 
-        return new JScrollPane(table);
-    }
-
-    private static JPanel buildExactnessPanel(QuboResult result) {
-        List<ExactnessPoint> points = result.exactnessPoints;
-
-        String[] cols = {"#", "x (Hamming wt)", "f(x)", "q(x)", "|error|", "Status"};
-        DefaultTableModel model = new DefaultTableModel(cols, 0) {
-            @Override public boolean isCellEditable(int r, int c) { return false; }
-        };
-
-        int worstRow = -1;
-        double worstError = -1.0;
-        for (int k = 0; k < points.size(); k++) {
-            ExactnessPoint pt = points.get(k);
-            if (!pt.evalFailed) {
-                double err = pt.error();
-                if (err > worstError) { worstError = err; worstRow = k; }
-            }
-        }
-
-        for (int k = 0; k < points.size(); k++) {
-            ExactnessPoint pt = points.get(k);
-            int hw = 0;
-            for (int v : pt.vector) hw += v;
-            if (pt.evalFailed) {
-                model.addRow(new Object[]{k, "wt=" + hw, "—", "—", "—", "ERR"});
-            } else {
-                double err = pt.error();
-                String status = err < 1e-9 ? "✓" : "✗";
-                model.addRow(new Object[]{
-                        k,
-                        "wt=" + hw,
-                        String.format("%.6f", pt.fx),
-                        String.format("%.6f", pt.qx),
-                        String.format("%.2e", err),
-                        status
-                });
-            }
-        }
-
-        JTable table = new JTable(model);
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
-        table.getColumnModel().getColumn(0).setPreferredWidth(30);
-        table.getColumnModel().getColumn(1).setPreferredWidth(90);
-        table.getColumnModel().getColumn(2).setPreferredWidth(100);
-        table.getColumnModel().getColumn(3).setPreferredWidth(100);
-        table.getColumnModel().getColumn(4).setPreferredWidth(80);
-        table.getColumnModel().getColumn(5).setPreferredWidth(55);
-
-        final int capturedWorstRow = worstRow;
-        table.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
-            @Override
-            public Component getTableCellRendererComponent(JTable t, Object value,
-                    boolean isSelected, boolean hasFocus, int row, int col) {
-                Component c = super.getTableCellRendererComponent(
-                        t, value, isSelected, hasFocus, row, col);
-                if (!isSelected) {
-                    c.setBackground(row == capturedWorstRow ? new Color(255, 200, 200) : Color.WHITE);
-                }
-                return c;
-            }
-        });
-
-        ToolTipManager.sharedInstance().registerComponent(table);
-        table.addMouseMotionListener(new MouseMotionAdapter() {
-            @Override
-            public void mouseMoved(MouseEvent e) {
-                int row = table.rowAtPoint(e.getPoint());
-                if (row < 0 || row >= points.size()) { table.setToolTipText(null); return; }
-                ExactnessPoint pt = points.get(row);
-                table.setToolTipText(ViewFormatUtil.buildVectorAssignment(pt.vector, result.varLabels));
-            }
-        });
-
-        Color headerBg = result.exact ? new Color(0, 150, 0) : new Color(200, 0, 0);
-        table.getTableHeader().setBackground(headerBg);
-        table.getTableHeader().setForeground(Color.WHITE);
-        table.getTableHeader().setFont(table.getTableHeader().getFont().deriveFont(Font.BOLD));
-
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBorder(BorderFactory.createTitledBorder("Exactness check ("
-                + points.size() + " held-out vectors)"));
-        panel.add(new JScrollPane(table), BorderLayout.CENTER);
-        return panel;
+        return table;
     }
 
     private static String derivedLabel(int i, int j) {

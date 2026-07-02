@@ -1,4 +1,4 @@
-package org.tzi.use.plugin.use2qubo.ui;
+package org.tzi.use.plugin.use2qubo.ui.tabs;
 
 import java.awt.Component;
 import java.util.ArrayList;
@@ -13,9 +13,9 @@ import javax.swing.table.DefaultTableModel;
 import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
 
 /** "Terms" tab: flat list of all non-zero coefficients, sorted by |coefficient| descending. */
-class TermsTabPanel extends JScrollPane {
+public class TermsTabPanel extends JScrollPane {
 
-    TermsTabPanel(QuboResult result) {
+    public TermsTabPanel(QuboResult result) {
         String[] cols = {"Type", "i", "j", "Label(s)", "Coefficient"};
         DefaultTableModel model = new DefaultTableModel(cols, 0) {
             @Override public boolean isCellEditable(int r, int c) { return false; }

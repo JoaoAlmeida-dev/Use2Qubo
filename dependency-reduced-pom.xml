@@ -15,7 +15,7 @@
         <configuration>
           <archive>
             <manifest>
-              <mainClass>org.tzi.use.plugin.use2qubo.use2quboPlugin</mainClass>
+              <mainClass>org.tzi.use.plugin.use2qubo.Use2QuboPlugin</mainClass>
               <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
             </manifest>
           </archive>

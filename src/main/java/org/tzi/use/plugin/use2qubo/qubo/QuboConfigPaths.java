@@ -14,7 +14,7 @@ public final class QuboConfigPaths {
         String specFile = system.model().filename();
         if (specFile == null || specFile.isEmpty()) specFile = Options.specFilename;
         if (specFile == null || specFile.isEmpty())
-            throw new IOException("No .use file loaded; cannot locate export_config.json");
-        return new File(new File(specFile).getParentFile(), "export_config.json");
+            throw new IOException("No .use file loaded; cannot locate qubo_config.json");
+        return new File(new File(specFile).getParentFile(), "qubo_config.json");
     }
 }

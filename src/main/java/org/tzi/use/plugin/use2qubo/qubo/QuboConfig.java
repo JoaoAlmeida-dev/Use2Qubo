@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Parses export_config.json for QUBO pipeline use.
+ * Parses qubo_config.json for QUBO pipeline use.
  */
 public class QuboConfig {
 

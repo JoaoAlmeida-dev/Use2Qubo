@@ -1,6 +1,9 @@
-package org.tzi.use.plugin.use2qubo.ui;
+package org.tzi.use.plugin.use2qubo.ui.tabs;
 
 import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
+import org.tzi.use.plugin.use2qubo.ui.CellColorScale;
+import org.tzi.use.plugin.use2qubo.ui.ExpressionPanel;
+import org.tzi.use.plugin.use2qubo.ui.ViewFormatUtil;
 
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -18,9 +21,9 @@ import java.awt.Dimension;
 import java.awt.event.MouseEvent;
 
 /** "Matrix" tab: colour-coded Q-matrix table, row/column variable index, and the algebraic expression below it. */
-class MatrixTabPanel extends JSplitPane {
+public class MatrixTabPanel extends JSplitPane {
 
-    MatrixTabPanel(QuboResult result) {
+    public MatrixTabPanel(QuboResult result) {
         super(JSplitPane.VERTICAL_SPLIT);
         int n = result.nVars;
 

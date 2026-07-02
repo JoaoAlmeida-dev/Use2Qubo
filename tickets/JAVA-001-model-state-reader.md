@@ -9,9 +9,9 @@ Build an internal `QuboContext` from the live USE runtime: read class invariants
 **In scope:**
 - Collect all `MClassInvariant` from `MModel.classInvariants()`
 - Build object list per class from `MSystemState.allObjects()`
-- Build fixed link map from `MSystemState.allLinks()` filtered by `export_config.json` decision-var associations
-- Build decision-variable index from `export_config.json` `decision_vars` array (same sorted-order logic as TICKET-002)
-- Load `objective` expression string from `export_config.json`
+- Build fixed link map from `MSystemState.allLinks()` filtered by `qubo_config.json` decision-var associations
+- Build decision-variable index from `qubo_config.json` `decision_vars` array (same sorted-order logic as TICKET-002)
+- Load `objective` expression string from `qubo_config.json`
 - Produce `QuboContext` for downstream consumption by JAVA-002
 
 **Out of scope:**
@@ -54,7 +54,7 @@ public class QuboContext {
     public final Map<String, List<MLink>>   fixedLinks;  // assocName → links (non-decision)
     public final List<DecisionVar> decisionVars;         // ordered, from export_config
     public final int nVars;
-    public final String objectiveExpr;  // OCL string from export_config.json
+    public final String objectiveExpr;  // OCL string from qubo_config.json
     public final boolean minimise;
 
     // Index into binary x vector
@@ -69,13 +69,13 @@ public record DecisionVar(String type, String association,
 ## Variable Indexing
 
 Same deterministic sort as TICKET-002:
-- Process `decision_vars` in list order from `export_config.json`
+- Process `decision_vars` in list order from `qubo_config.json`
 - Within each entry: all (a, b) pairs sorted by `(a.name(), b.name())` lexicographically
 - First entry occupies indices 0..k-1, second k..m-1, etc.
 
 ## Config Loading
 
-`export_config.json` is loaded from the same directory as the `.use` file (existing convention from `SystemStateExporter`). Required fields for QUBO:
+`qubo_config.json` is loaded from the same directory as the `.use` file (existing convention from `SystemStateExporter`). Required fields for QUBO:
 
 ```json
 {
