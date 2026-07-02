@@ -1,6 +1,6 @@
 # USE2QUBO Plugin
 
-A USE OCL plugin that derives a QUBO formulation from OCL constraints, supporting the model-driven quantum optimisation pipeline described in the accompanying paper.
+A USE OCL plugin that derives a QUBO formulation from OCL constraints, supporting a model-driven quantum optimisation pipeline.
 
 ## Features
 
@@ -13,31 +13,33 @@ A USE OCL plugin that derives a QUBO formulation from OCL constraints, supportin
 
 - Java 11+
 - Maven 3.6+
-- USE OCL 7.5.0 JARs in `lib/` (see [lib/README.md](lib/README.md))
+- A checkout of [useocl/use](https://github.com/useocl/use) (USE OCL, version 7.5.0), used to obtain the `use-core` and `use-gui` JARs and, optionally, the `use-assembly` module for building a redistributable USE bundle with the plugin included
 
 ## Building
 
-### Quick build (plugin + assembly)
+### 1. Get the USE JARs
 
-Use the PowerShell script at `../build-plugin.ps1` from the `tools/` directory:
+This plugin depends on `use-core` and `use-gui`, which are not published to Maven Central. Build them from the USE repo and copy them into `lib/`:
 
-```powershell
-cd articles/qmod_2026/tools
-.\build-plugin.ps1
+```bash
+git clone https://github.com/useocl/use.git
+cd use
+mvn package -pl use-core -pl use-gui
 ```
 
-This does three things in sequence:
-1. `mvn clean package` in this directory → `target/use2qubo-1.0.0.jar`
-2. Copies the JAR into `use-assembly/src/main/resources/plugins/`
-3. `mvn package` in `use-assembly/` → a redistributable `use-7.5.0-use-bin.zip` with the plugin bundled
+Then copy the resulting JARs (or the ones from an existing USE installation's `lib/` directory) into this plugin's `lib/`. See [lib/README.md](lib/README.md) for exact filenames.
 
-### Plugin JAR only
+### 2. Build the plugin JAR
 
-```powershell
+```bash
 mvn clean package
 ```
 
 Output: `target/use2qubo-1.0.0.jar`
+
+### 3. (Optional) Bundle into a USE distribution
+
+To produce a redistributable USE ZIP with the plugin pre-installed, copy `target/use2qubo-1.0.0.jar` into `<use-repo>/use-assembly/src/main/resources/plugins/`, then run `mvn package -DskipTests` inside `<use-repo>/use-assembly/`. The resulting `use-7.5.0-use-bin.zip` will include this plugin.
 
 ## Installation
 
