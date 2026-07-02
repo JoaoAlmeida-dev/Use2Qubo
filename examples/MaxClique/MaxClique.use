@@ -1,0 +1,54 @@
+model MaxClique
+
+-- ===========================================================
+-- Classes
+-- ===========================================================
+
+-- A node in the graph.
+class Vertex
+attributes
+  vertexId : Integer
+end
+
+-- The candidate clique (singleton in any model instance).
+-- Decision variables are the Contains links: x_i = 1 iff vertex i is in the clique.
+class Solution
+end
+
+-- ===========================================================
+-- Associations
+-- ===========================================================
+
+-- Binary decision variables: is this vertex part of the solution clique?
+-- One Contains link per vertex means that vertex is selected (x_i = 1).
+association Contains between
+  Solution[0..1] role solution
+  Vertex[*]      role members
+end
+
+-- Undirected graph edges, stored as directed links (one per pair).
+-- The cliqueProperty invariant checks both directions, so only one
+-- directed insertion per undirected edge is needed in the .cmd file.
+association Edge between
+  Vertex[*] role edgeSource
+  Vertex[*] role edgeDest
+end
+
+-- ===========================================================
+-- Constraints
+-- ===========================================================
+
+constraints
+
+context Vertex
+  inv positiveId:
+    self.vertexId > 0
+
+context Solution
+  -- Every pair of selected vertices must be connected by an edge.
+  -- Violation of this invariant is the penalty term in the QUBO.
+  -- Uses role navigation in both directions to treat Edge as undirected.
+  inv cliqueProperty:
+    self.members->forAll(u | self.members->forAll(v |
+      u <> v implies
+      u.edgeDest->includes(v) or u.edgeSource->includes(v)))

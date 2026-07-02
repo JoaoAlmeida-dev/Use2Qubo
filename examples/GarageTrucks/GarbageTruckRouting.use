@@ -1,0 +1,256 @@
+model GarbageTruckRouting
+
+-- ===========================================================
+-- Enumerations
+-- ===========================================================
+
+enum NodeType { Depot, Intersection, DisposalFacility }
+
+-- ===========================================================
+-- Classes
+-- ===========================================================
+
+class Node
+attributes
+  nodeId   : Integer
+  nodeType : NodeType
+end
+
+-- A garbage bin situated at a city node.
+-- currentFill and maxFill are in cubic meters.
+class GarbageBin
+attributes
+  currentFill : Real  -- current garbage volume (m3)
+  maxFill     : Real  -- bin capacity (m3)
+end
+
+-- A garbage collection truck for one shift.
+class Truck
+attributes
+  truckId           : Integer
+  fuelRange         : Real    -- max km the truck can travel this shift
+  maxCapacity       : Real    -- max garbage volume the truck can hold (m3)
+  currentLoad       : Real    -- garbage currently loaded (m3)
+  distanceTravelled : Real    -- km driven so far this shift
+  active            : Boolean -- true if this truck is deployed on a route
+operations
+  -- Pick up the contents of a bin.
+  -- Preconditions: bin has garbage and truck has room.
+  -- Postconditions: bin is emptied and truck load is increased.
+  collectGarbage(bin : GarbageBin)
+end
+
+-- An ordered sequence of city nodes forming one truck's collection route.
+class Route
+attributes
+  totalTravelTime : Real  -- sum of travelTime values along the route (minutes)
+end
+
+-- ===========================================================
+-- Association Classes
+-- ===========================================================
+
+-- Directed road segment between two city nodes.
+-- travelTime is the weight (minutes) to traverse this road.
+associationclass Road between
+  Node[*] role origin
+  Node[*] role destination
+attributes
+  travelTime : Real
+end
+
+-- ===========================================================
+-- Associations
+-- ===========================================================
+
+-- Many bins may be located at the same node.
+association LocatedAt between
+  GarbageBin[*] role bins
+  Node[1]        role location
+end
+
+-- Each route is assigned to exactly one truck.
+-- A truck may have at most one active route per shift.
+association AssignedTo between
+  Route[0..1] role route
+  Truck[1]    role truck
+end
+
+-- Ordered sequence of nodes a route visits.
+-- step is the 0-indexed position in the route.
+-- Explicit step attribute lets AutoQUBO build symbolic Q matrix entries
+-- indexed by (Route, step, Node) triples rather than relying on insertion order.
+associationclass RouteStop between
+  Route[*] role routes
+  Node[*]  role stops ordered
+attributes
+  step : Integer
+operations
+  -- Returns the RouteStop at the next position on the same route (undefined if this is the last stop).
+  nextStop() : RouteStop =
+    RouteStop.allInstances->any(rs2 | rs2.routes = self.routes and rs2.step = self.step + 1)
+
+  -- Returns the Road segment connecting this stop to the next stop on the same route.
+  -- Only valid when step < route.stops->size() - 1.
+  roadToNext() : Road =
+    let next : RouteStop = self.nextStop() in
+    Road.allInstances->select(road | road.origin = self.stops and road.destination = next.stops)->any(true)
+end
+
+-- ===========================================================
+-- Constraints
+-- ===========================================================
+
+constraints
+
+-- -----------------------------------------------------------
+-- GarbageBin constraints
+-- -----------------------------------------------------------
+
+context GarbageBin
+  inv positiveBinCapacity:
+    self.maxFill > 0
+
+  inv fillWithinCapacity:
+    self.currentFill >= 0 and self.currentFill <= self.maxFill
+
+  -- Each bin that contains garbage must appear in exactly one route's stops.
+  inv mustBeCoveredIfNotEmpty:
+    self.currentFill > 0 implies
+      Route.allInstances->exists(r |
+        r.stops->includes(self.location))
+
+  -- A bin must not be visited by more than one route
+  -- (collecting the same bin twice makes no sense).
+  inv collectedAtMostOnce:
+    Route.allInstances
+      ->select(r | r.stops->includes(self.location))
+      ->size() <= 1
+
+-- -----------------------------------------------------------
+-- Road constraints
+-- -----------------------------------------------------------
+
+context Road
+  inv positiveTravelTime:
+    self.travelTime > 0
+
+-- -----------------------------------------------------------
+-- RouteStop constraints
+-- -----------------------------------------------------------
+
+context RouteStop
+  inv stepNonNegative:
+    self.step >= 0
+
+  -- No two RouteStop links on the same route may share a step index.
+  inv uniqueStepPerRoute:
+    RouteStop.allInstances
+      ->select(rs | rs.routes = self.routes and rs.step = self.step)
+      ->size() = 1
+
+-- -----------------------------------------------------------
+-- Truck constraints
+-- -----------------------------------------------------------
+
+context Truck
+  inv positiveFuelRange:
+    self.fuelRange > 0
+
+  inv positiveMaxCapacity:
+    self.maxCapacity > 0
+
+  inv loadWithinCapacity:
+    self.currentLoad >= 0 and self.currentLoad <= self.maxCapacity
+
+  inv distanceWithinFuelRange:
+    self.distanceTravelled >= 0 and self.distanceTravelled <= self.fuelRange
+
+  -- An inactive truck must not have a route assigned.
+  inv inactiveHasNoRoute:
+    not self.active implies self.route->isEmpty()
+
+  -- An active truck must have a route assigned.
+  -- (Prevents marking a truck active without deploying it.)
+  inv activeHasRoute:
+    self.active implies self.route->notEmpty()
+
+-- -----------------------------------------------------------
+-- Route constraints
+-- -----------------------------------------------------------
+
+context Route
+  -- A route must have at least two stops (start and end).
+  inv minimumStops:
+    self.stops->size() >= 2
+
+  -- A route must start at the depot.
+  inv startsAtDepot:
+    self.stops->first().nodeType = #Depot
+
+  -- A route must end at a disposal facility.
+  inv endsAtDisposalFacility:
+    self.stops->last().nodeType = #DisposalFacility
+
+  -- The truck's accumulated distance must not exceed its fuel range.
+  inv truckFuelNotExceeded:
+    self.truck.distanceTravelled <= self.truck.fuelRange
+
+  -- The truck's loaded garbage must not exceed its capacity.
+  inv truckCapacityNotExceeded:
+    self.truck.currentLoad <= self.truck.maxCapacity
+
+  -- totalTravelTime must be non-negative.
+  inv nonNegativeTravelTime:
+    self.totalTravelTime >= 0
+
+  -- Every consecutive stop pair must be linked by a Road segment.
+  -- Expressed via RouteStop.step so the constraint is derivable from the
+  -- binary decision variables rather than from insertion order.
+  -- Capacity and fuel constraints (truckCapacityNotExceeded,
+  -- truckFuelNotExceeded) operate on Real-valued attributes and are not
+  -- directly encodable in the QUBO Q matrix; they are verified post-solve.
+  --
+  -- inv consecutiveStopsConnected:
+  --   RouteStop.allInstances->select(rs | rs.routes = self)->forAll(rs |
+  --     rs.step < self.stops->size() - 1 implies
+  --     Road.allInstances->exists(road |
+  --       road.origin = rs.stops and
+  --       road.destination =
+  --         RouteStop.allInstances->any(
+  --           rs2 | rs2.routes = self and rs2.step = rs.step + 1).stops))
+  --
+  -- (Commented out: requires link-object navigation rs.stops from RouteStop;
+  --  verify with target USE version before enabling.)
+
+  -- Consistency guard: totalTravelTime must equal the sum of Road.travelTime
+  -- values across consecutive RouteStop pairs.
+  -- The objective OCL expression in export_config.json derives this sum
+  -- directly from RouteStop.step and Road.travelTime without using this
+  -- attribute, making the QUBO cost coefficients independent of manually
+  -- set values.
+  --
+  -- inv travelTimeConsistent:
+  --   let n = self.stops->size() in
+  --   Sequence{1..n-1}->iterate(i : Integer; acc : Real = 0.0 |
+  --     acc + Road.allInstances->select(
+  --       r | r.origin = self.stops->at(i) and
+  --           r.destination = self.stops->at(i+1))->first().travelTime)
+  --   = self.totalTravelTime
+  --
+  -- (Commented out: USE OCL does not support integer range literals
+  --  in ->iterate directly; verify with target USE version before enabling.)
+
+-- -----------------------------------------------------------
+-- Truck operation pre/postconditions
+-- -----------------------------------------------------------
+
+context Truck :: collectGarbage(bin : GarbageBin)
+  pre binNeedsCollection:
+    bin.currentFill > 0
+  pre truckHasRemainingCapacity:
+    self.currentLoad + bin.currentFill <= self.maxCapacity
+  post truckLoadIncreased:
+    self.currentLoad = self.currentLoad@pre + bin.currentFill@pre
+  post binEmptied:
+    bin.currentFill = 0

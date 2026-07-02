@@ -67,6 +67,35 @@ Place `export_config.json` in the same directory as the `.use` model file. Requi
 - `decision_vars` — ordered list of variable entries used to build the flat binary vector. Variable indices are assigned in list order; within each entry, (a, b) pairs are sorted lexicographically by object name.
 - `objective` — OCL expression to optimise and direction (`minimise`/`maximise`).
 
+## Examples
+
+The [examples/](examples/) directory contains ready-to-load `.use` models with matching `export_config.json` files:
+
+| Example | Description |
+|---------|-------------|
+| [examples/GarageTrucks/](examples/GarageTrucks/GarbageTruckRouting.use) | Garbage truck routing model; decision variables encode route/stop assignments, objective minimises total travel time. See [export_config_schema.md](examples/GarageTrucks/export_config_schema.md) for a full field-by-field reference of `export_config.json`. |
+| [examples/autoquboMaxClique/](examples/autoquboMaxClique/MaxClique.use) | Max-clique model demonstrating AutoQUBO sampling on a classic combinatorial benchmark. |
+
+Each example folder also ships a `.cmd` file with USE console commands to load the model and populate an initial object diagram, useful for a quick smoke test after installing the plugin.
+
+## Screenshots
+
+**Class diagram** — a loaded `.use` model before deriving the QUBO matrix:
+
+![Example class diagram](screenshots/ExampleClassDiagram.png)
+
+**Object diagram** — decision-variable instances populating the model:
+
+![Example object diagram](screenshots/ExampleObjectDiagram.png)
+
+**QUBO config editor** — "Edit QUBO Config" form UI for `export_config.json`:
+
+![QUBO config editor](screenshots/QuboConfig.png)
+
+**QUBO matrix view** — "Derive QUBO Matrix" result, colour-coded Q-matrix table:
+
+![QUBO matrix view](screenshots/QuboMatrix.png)
+
 ## Source layout
 
 ```

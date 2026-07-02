@@ -1,0 +1,21 @@
+{
+  "decision_var_associations": ["RouteStop", "AssignedTo"],
+  "penalty_method": "verma-lewis",
+  "decision_vars": [
+    {
+      "type": "link",
+      "association": "RouteStop",
+      "domain": ["Route", "Node"],
+      "index_attribute": "step"
+    },
+    {
+      "type": "link",
+      "association": "AssignedTo",
+      "domain": ["Route", "Truck"]
+    }
+  ],
+  "objective": {
+    "expression": "RouteStop.allInstances->select(rs | rs.step < rs.routes.stops->size() - 1)->collect(rs | rs.roadToNext().travelTime)->sum()",
+    "minimise": true
+  }
+}

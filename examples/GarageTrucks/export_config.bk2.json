@@ -1,0 +1,19 @@
+{
+  "decision_var_associations": ["RouteVisits", "AssignedTo"],
+  "decision_vars": [
+    {
+      "type": "link",
+      "association": "RouteVisits",
+      "domain": ["Route", "Node"]
+    },
+    {
+      "type": "link",
+      "association": "AssignedTo",
+      "domain": ["Route", "Truck"]
+    }
+  ],
+  "objective": {
+    "expression": "Route.allInstances->collect(r | r.totalTravelTime)->sum()",
+    "minimise": true
+  }
+}
