@@ -1,6 +1,11 @@
 # USE2QUBO Plugin
 
+[![CI](https://github.com/JoaoAlmeida-dev/Use2Qubo/actions/workflows/ci.yml/badge.svg)](https://github.com/JoaoAlmeida-dev/Use2Qubo/actions/workflows/ci.yml)
+[![Release](https://github.com/JoaoAlmeida-dev/Use2Qubo/actions/workflows/release.yml/badge.svg)](https://github.com/JoaoAlmeida-dev/Use2Qubo/actions/workflows/release.yml)
+
 A USE OCL plugin that derives a QUBO formulation from OCL constraints, supporting a model-driven quantum optimisation pipeline.
+
+Versioned release jars: see [Releases](https://github.com/JoaoAlmeida-dev/Use2Qubo/releases). Commit convention for contributors: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Features
 
@@ -127,6 +132,7 @@ If either assumption is violated, q(x) matches f(x) on the training points but d
 | [JAVA-008](tickets/JAVA-008-dialog-to-internal-windows.md) | Convert popup dialogs to dockable internal windows | Done |
 | [JAVA-009](tickets/JAVA-009-ui-understandability-improvements.md) | UI understandability & visualisation improvements | Done |
 | [JAVA-010](tickets/JAVA-010-qubo-expression-visualisation.md) | QUBO expression graph visualiser (`QuboGraphPanel`) | Done |
+| [JAVA-013](tickets/JAVA-013-headless-cli.md) | Headless CLI: derive QUBO without USE GUI | Open |
 
 ## Prerequisites
 

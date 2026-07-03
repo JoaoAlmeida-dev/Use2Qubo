@@ -1,6 +1,8 @@
 # lib/ — USE JAR Dependencies
 
-Place the following JARs here before running `mvn package`:
+These JARs are committed to the repo (exception carved out of `.gitignore`'s
+`*.jar` rule) so CI/release workflows can build without cloning and building
+`useocl/use` from source. Place the following JARs here before running `mvn package`:
 
 | File | Source |
 |------|--------|

@@ -1,0 +1,24 @@
+{
+  "branches": ["main"],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "mvn -B org.codehaus.mojo:versions-maven-plugin:2.16.2:set -DnewVersion=${nextRelease.version} -DgenerateBackupPoms=false && mvn -B clean package -DskipTests"
+      }
+    ],
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "target/use2qubo-*.jar",
+            "label": "use2qubo-${nextRelease.version}.jar"
+          }
+        ]
+      }
+    ]
+  ]
+}

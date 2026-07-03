@@ -113,6 +113,8 @@ local.properties
 
 # Package Files #
 *.jar
+!lib/use-core-*.jar
+!lib/use-gui.jar
 *.war
 *.nar
 *.ear
@@ -162,3 +164,6 @@ $RECYCLE.BIN/
 
 
 # End of https://www.gitignore.io/api/git,java,maven,eclipse,windows
+
+
+node_modules/

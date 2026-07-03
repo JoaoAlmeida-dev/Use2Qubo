@@ -1,0 +1,11 @@
+# <type>[optional scope]: <description>
+# |----|--------------------------------------------------------------------|  50 chars
+#
+# [optional body]
+# |----------------------------------------------------------------------------------------------|  72 chars
+#
+# [optional footer(s), e.g. BREAKING CHANGE: ... ]
+#
+# type: feat | fix | docs | style | refactor | perf | test | build | ci | chore | revert
+# feat=minor bump, fix=patch bump, BREAKING CHANGE footer=major bump, others=no release.
+# See CONTRIBUTING.md.

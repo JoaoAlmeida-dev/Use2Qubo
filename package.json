@@ -1,0 +1,14 @@
+{
+  "name": "use2qubo-release-tooling",
+  "private": true,
+  "description": "semantic-release tooling for the USE2QUBO plugin (Maven artifact is the actual release, this package.json only pins release tooling).",
+  "devDependencies": {
+    "semantic-release": "^23.0.0",
+    "@semantic-release/commit-analyzer": "^13.0.0",
+    "@semantic-release/release-notes-generator": "^14.0.0",
+    "@semantic-release/exec": "^6.0.3",
+    "@semantic-release/github": "^10.0.0",
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0"
+  }
+}
