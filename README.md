@@ -7,6 +7,12 @@ A USE OCL plugin that derives a QUBO formulation from OCL constraints, supportin
 
 Versioned release jars: see [Releases](https://github.com/JoaoAlmeida-dev/Use2Qubo/releases). Commit convention for contributors: [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Workflows
+
+- **CI** (`ci.yml`) — builds and tests every push/PR (`mvn clean verify`), uploads jar artifact.
+- **Commitlint** (`commitlint.yml`) — enforces conventional-commit messages on PRs to `main`.
+- **Release** (`release.yml`) — on push to `main`, runs `semantic-release` to bump the version, tag, publish a GitHub release with the built jar.
+
 ## Features
 
 | Action | Menu item | Status |
