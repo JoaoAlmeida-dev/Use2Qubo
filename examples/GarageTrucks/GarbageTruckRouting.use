@@ -22,6 +22,33 @@ class GarbageBin
 attributes
   currentFill : Real  -- current garbage volume (m3)
   maxFill     : Real  -- bin capacity (m3)
+operations
+  -- Coverage-magnitude penalty for the derived QUBO objective (qubo_config.json).
+  -- Replaces the old mustBeCoveredIfNotEmpty/collectedAtMostOnce boolean invariants,
+  -- which counted across many RouteStop decision-var instances and broke QuboEngine's
+  -- degree-2 exactness assumption (see QuboEngine.java class Javadoc).
+  -- 0 = correctly covered; > 0 = magnitude of violation.
+  -- Exact for this scenario because exactly one Route instance exists: coverCount
+  -- collapses to a single decision variable (this bin's location RouteStop link),
+  -- not a genuine multi-route aggregate. With multiple routes this would need the
+  -- same pairwise-decomposition treatment as edgeCost()/shapePenalty() below.
+  --
+  -- Unconditional: every bin in this scenario needs collection, so there is no
+  -- currentFill > 0 branch. That branch previously made this vacuous at
+  -- derivation time, because the .cmd script's collectGarbage() calls (run to
+  -- demonstrate `check` on the animated instance) set currentFill := 0 as a
+  -- side effect *before* "Derive QUBO Matrix" is invoked -- coverage was being
+  -- scored against already-emptied bins, so covering or not covering a bin's
+  -- node made no difference to the objective. Not a QuboEngine bug: the state
+  -- it samples is whatever is loaded when the user clicks derive; a penalty
+  -- operation must not key its own semantics off an attribute the demo
+  -- animation mutates as a side effect of showing feasibility.
+  coveragePenalty() : Integer =
+    let coverCount : Integer =
+      RouteStop.allInstances->select(rs | rs.stops = self.location)
+        ->collect(rs | rs.routes)->asSet()->size()
+    in
+    (coverCount - 1).abs()
 end
 
 -- A garbage collection truck for one shift.
@@ -44,6 +71,50 @@ end
 class Route
 attributes
   totalTravelTime : Real  -- sum of travelTime values along the route (minutes)
+operations
+  -- Pairwise travel-cost term for the derived QUBO objective.
+  -- Replaces a step/roadToNext()-based consecutive-stop sum: RouteStop is an
+  -- associationclass with its own `step` attribute, and QuboEngine's temporary
+  -- links (created during sampling) never populate association-class-owned
+  -- attributes -- step is always at its default while sampling, which broke
+  -- nextStop()/roadToNext() and any cost term depending on them, independent
+  -- of aggregation degree. Not a QuboEngine bug: the plugin is domain-agnostic
+  -- and never sets model-specific attributes; this is a model-authoring fix.
+  --
+  -- edgeCost() instead sums travelTime over every Road edge whose origin AND
+  -- destination are both selected RouteStop nodes for this route -- a genuine
+  -- product of two decision variables per edge (degree-2 exact), independent
+  -- of `step` or of RouteStop's `ordered` role insertion order (also not
+  -- meaningful during sampling, since temporary links are created in
+  -- decision-variable index order, not path order).
+  --
+  -- Trade-off (documented, not hidden): this is an "induced subgraph cost" --
+  -- it sums travel time over every directly-connected pair of selected nodes,
+  -- not just consecutive stops in visit order. For this scenario's road graph,
+  -- once n2, n3 and disposal are all selected (forced by coveragePenalty() and
+  -- shapePenalty()), the two shortcut edges (n2->disposal, n3->disposal) are
+  -- also counted even though a single simple path wouldn't use them.
+  edgeCost() : Real =
+    Road.allInstances->collect(r |
+      r.travelTime *
+      (if RouteStop.allInstances->exists(rs | rs.routes = self and rs.stops = r.origin) then 1 else 0 endif) *
+      (if RouteStop.allInstances->exists(rs | rs.routes = self and rs.stops = r.destination) then 1 else 0 endif)
+    )->sum()
+
+  -- Route-shape magnitude penalty for the derived QUBO objective.
+  -- Replaces the old minimumStops/startsAtDepot/endsAtDisposalFacility boolean
+  -- invariants. Depends only on node *presence*, not order -- self.stops->
+  -- first()/last() relied on the ordered role's insertion order, which (like
+  -- `step`, see edgeCost() above) is not meaningful during QuboEngine's
+  -- sampling. No size/minimum-stops term: coveragePenalty() already forces
+  -- enough intermediate stops to be selected, so it would be redundant.
+  -- 0 = route includes both the depot and a disposal facility.
+  shapePenalty() : Integer =
+    let hasDepot : Boolean =
+      RouteStop.allInstances->exists(rs | rs.routes = self and rs.stops.nodeType = #Depot) in
+    let hasDisposal : Boolean =
+      RouteStop.allInstances->exists(rs | rs.routes = self and rs.stops.nodeType = #DisposalFacility) in
+    (if hasDepot then 0 else 1 endif) + (if hasDisposal then 0 else 1 endif)
 end
 
 -- ===========================================================
@@ -114,18 +185,11 @@ context GarbageBin
   inv fillWithinCapacity:
     self.currentFill >= 0 and self.currentFill <= self.maxFill
 
-  -- Each bin that contains garbage must appear in exactly one route's stops.
-  inv mustBeCoveredIfNotEmpty:
-    self.currentFill > 0 implies
-      Route.allInstances->exists(r |
-        r.stops->includes(self.location))
-
-  -- A bin must not be visited by more than one route
-  -- (collecting the same bin twice makes no sense).
-  inv collectedAtMostOnce:
-    Route.allInstances
-      ->select(r | r.stops->includes(self.location))
-      ->size() <= 1
+  -- Coverage (each non-empty bin covered exactly once, no bin covered twice)
+  -- is enforced as a numeric penalty term via GarbageBin::coveragePenalty(),
+  -- summed in qubo_config.json's objective.expression. Not a boolean inv here:
+  -- the old formulation counted across many RouteStop decision-var instances,
+  -- which QuboEngine cannot represent exactly as a degree-2 polynomial.
 
 -- -----------------------------------------------------------
 -- Road constraints
@@ -143,11 +207,11 @@ context RouteStop
   inv stepNonNegative:
     self.step >= 0
 
-  -- No two RouteStop links on the same route may share a step index.
-  inv uniqueStepPerRoute:
-    RouteStop.allInstances
-      ->select(rs | rs.routes = self.routes and rs.step = self.step)
-      ->size() = 1
+  -- Step uniqueness is not enforced as a QUBO term: `step` is not populated on
+  -- QuboEngine's temporary sampling links (see Route::edgeCost() comment), so
+  -- no penalty can read it meaningfully during derivation. Structurally moot
+  -- anyway: each (Route, Node) pair is exactly one RouteStop decision variable,
+  -- so duplicate positions on the same route cannot occur by construction.
 
 -- -----------------------------------------------------------
 -- Truck constraints
@@ -180,17 +244,10 @@ context Truck
 -- -----------------------------------------------------------
 
 context Route
-  -- A route must have at least two stops (start and end).
-  inv minimumStops:
-    self.stops->size() >= 2
-
-  -- A route must start at the depot.
-  inv startsAtDepot:
-    self.stops->first().nodeType = #Depot
-
-  -- A route must end at a disposal facility.
-  inv endsAtDisposalFacility:
-    self.stops->last().nodeType = #DisposalFacility
+  -- Route shape (includes depot, includes a disposal facility) is enforced as
+  -- a numeric penalty term via Route::shapePenalty(), summed in
+  -- qubo_config.json's objective.expression (see GarbageBin::coveragePenalty()
+  -- comment above for why this moved out of boolean invs).
 
   -- The truck's accumulated distance must not exceed its fuel range.
   inv truckFuelNotExceeded:

@@ -4,8 +4,16 @@
 --
 -- Scenario: 7 nodes (1 depot, 4 intersections, 1 disposal),
 --           3 garbage bins, 2 trucks.
--- Optimal solution: 1 active truck covers all 3 bins;
---                   1 truck remains inactive.
+-- Solution animated below: 1 active truck covers all 3 bins via all 6 stops
+-- (depot, n2, n3, n4, n5, disposal); 1 truck remains inactive. This is a
+-- feasible, check-passing scenario, not necessarily the QUBO's cost-minimal
+-- one: qubo_config.json's objective (Route::edgeCost(), see
+-- export_config_schema.md) sums travel time over every directly-connected
+-- pair of *selected* nodes, not strictly the visit-order path, so annealing
+-- the derived qubo.json may find a cheaper feasible solution (e.g. using the
+-- n2->disposal/n3->disposal shortcuts and omitting n5) -- see
+-- experiments/results/garagetrucks_annealing_result.json for what the
+-- annealer actually finds.
 --
 -- Load with: open GarbageTruckRouting.cmd
 -- ===========================================================

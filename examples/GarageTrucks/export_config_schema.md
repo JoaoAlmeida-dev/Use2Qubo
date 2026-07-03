@@ -136,18 +136,62 @@ AutoQUBO can compute Q matrix coefficients by sampling.
 
 **Current expression (GarbageTruckRouting):**
 ```ocl
-RouteStop.allInstances
-  ->select(rs | rs.step < rs.routes.stops->size() - 1)
-  ->collect(rs | rs.roadToNext().travelTime)
-  ->sum()
+Route.allInstances->collect(r | r.edgeCost())->sum()
++ 1000 * GarbageBin.allInstances->collect(b | b.coveragePenalty())->sum()
++ 1000 * Route.allInstances->collect(r | r.shapePenalty())->sum()
 ```
 
-This computes total travel time by summing `Road.travelTime` across all
-consecutive `RouteStop` pairs, indexed by `step`.
-`roadToNext()` is a helper operation defined on `RouteStop` in the `.use` model;
-it locates the `Road` between `step` and `step + 1` on the same route.
-The expression depends only on `RouteStop` links and `Road` weights — both
-derivable from decision variables — so AutoQUBO can sample it symbolically.
+The first term (`Route::edgeCost()`) sums `Road.travelTime` over every road
+edge whose origin *and* destination are both selected `RouteStop` nodes for
+that route — a genuine product of two decision variables per edge, so it is
+degree-2 exact. It deliberately does **not** use `step`/`roadToNext()`
+(consecutive-stop-in-order travel cost): `RouteStop` is an `associationclass`
+with its own `step` attribute, and `QuboEngine`'s temporary sampling links
+never populate association-class-owned attributes — `step` sits at its
+default for every sampled link, silently breaking any term that reads it
+(`nextStop()`, `roadToNext()`, and the old `stepUniquenessPenalty()`),
+independent of aggregation degree. This is not a `QuboEngine` bug to patch —
+the plugin is domain-agnostic and must not set model-specific attributes —
+it is a model-authoring constraint: **objective/penalty operations must only
+depend on decision-variable link presence and static attributes, never on an
+association-class's own attributes or on an `ordered` role's insertion
+order**, since neither is populated/meaningful during sampling.
+
+**Trade-off, documented not hidden:** because `edgeCost()` sums over *every*
+directly-connected pair of selected nodes rather than strictly consecutive
+visit-order stops, it is an "induced subgraph cost", not literal path cost.
+For this scenario's road graph, once `n2`, `n3` and `disposal` are all
+selected (forced by `coveragePenalty()`/`shapePenalty()`), the two shortcut
+edges (`n2→disposal`, `n3→disposal`) are counted too, even though a single
+simple path wouldn't traverse them.
+
+The remaining two terms are **manually-weighted penalty terms**, not
+automatic per-invariant penalties. They encode constraints that were
+previously written as boolean `inv`s (`mustBeCoveredIfNotEmpty`,
+`collectedAtMostOnce`, `minimumStops`, `startsAtDepot`,
+`endsAtDisposalFacility`) but each of those counted or existence-checked
+across many `RouteStop`/`AssignedTo` decision-var instances at once — a
+step function over more than two decision variables, which `QuboEngine`
+cannot represent exactly as a degree-2 polynomial (see its class Javadoc).
+Moving them into named `.use` operations (`coveragePenalty()`,
+`shapePenalty()`) returning an integer violation *magnitude* instead, and
+summing them here with an explicit weight, keeps the objective expression
+exact and auditable while still deriving purely from `RouteStop`/
+`AssignedTo` decision variables. `coveragePenalty()` is exact only because
+this scenario has a single `Route` instance (coverage collapses to one
+decision variable); a multi-route scenario would need the same
+pairwise-decomposition treatment as `edgeCost()`/`shapePenalty()`.
+
+The weight `1000` was chosen empirically (raised from an initial `100`, which
+proved too weak under the old, non-exact objective: a classical
+simulated-annealing run found skipping all bin stops cheaper than the full
+route). With the objective now degree-2 exact end to end, re-validate this
+weight against the new export — it is not derived automatically like the
+invariant penalty weight `B` computed by `QuboEngine.computePenaltyWeight`,
+so tune per scenario and validate by annealing the exported `qubo.json`.
+The expression depends only on `RouteStop`/`AssignedTo` links and static
+model attributes — all derivable from decision variables — so AutoQUBO can
+sample it symbolically.
 
 **Model-defined helpers:** operations declared on model classes in the `.use` file
 can be called from the objective expression.

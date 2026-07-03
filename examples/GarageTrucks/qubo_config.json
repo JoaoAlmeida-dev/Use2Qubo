@@ -14,7 +14,7 @@
     }
   ],
   "objective": {
-    "expression": "RouteStop.allInstances->select(rs | rs.step < rs.routes.stops->size() - 1)->collect(rs | rs.roadToNext().travelTime)->sum()",
+    "expression": "Route.allInstances->collect(r | r.edgeCost())->sum() + 1000 * GarbageBin.allInstances->collect(b | b.coveragePenalty())->sum() + 1000 * Route.allInstances->collect(r | r.shapePenalty())->sum()",
     "minimise": true
   }
 }
