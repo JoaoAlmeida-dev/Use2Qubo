@@ -1,14 +1,21 @@
 package org.tzi.use.plugin.use2qubo.ui.tabs;
 
+import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.FlowLayout;
+import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.util.List;
 
+import javax.swing.BorderFactory;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
 import javax.swing.JTable;
+import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.ToolTipManager;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -19,18 +26,67 @@ import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
 import org.tzi.use.plugin.use2qubo.qubo.SampleRecord;
 import org.tzi.use.plugin.use2qubo.ui.ViewFormatUtil;
 
-/** "Sampling" tab: cost/penalty sample heatmap. */
-public class SamplingTabPanel extends JScrollPane {
+/** "Sampling" tab: cost/penalty AutoQUBO probe tables, one per pass, with term-type colouring,
+ *  probe-count summaries, search filtering, and click-through to the matching Q-matrix cell. */
+public class SamplingTabPanel extends JSplitPane {
 
-    public SamplingTabPanel(QuboResult result) {
-        super(buildHeatmapTable(result));
+    public SamplingTabPanel(QuboResult result, MatrixTabPanel matrixTabPanel, Runnable switchToMatrixTab) {
+        super(JSplitPane.HORIZONTAL_SPLIT,
+                buildPassPanel("Cost pass", result.costSamples, result, matrixTabPanel, switchToMatrixTab),
+                buildPassPanel("Penalty pass", result.penaltySamples, result, matrixTabPanel, switchToMatrixTab));
+        setResizeWeight(0.5);
     }
 
-    private static JTable buildHeatmapTable(QuboResult result) {
+    private static JPanel buildPassPanel(String title, List<SampleRecord> samples,
+            QuboResult result, MatrixTabPanel matrixTabPanel, Runnable switchToMatrixTab) {
         int n = result.nVars;
 
-        List<SampleRecord> cost    = result.costSamples;
-        List<SampleRecord> penalty = result.penaltySamples;
+        int constCount = 0, linearCount = 0, quadCount = 0;
+        for (SampleRecord sr : samples) {
+            if (sr.derivedI == -1) constCount++;
+            else if (sr.derivedI == sr.derivedJ) linearCount++;
+            else quadCount++;
+        }
+        int expectedLinear = n;
+        int expectedQuad = n * (n - 1) / 2;
+
+        JTable table = buildTable(samples, result, matrixTabPanel, switchToMatrixTab);
+
+        JTextField search = new JTextField();
+        ViewFormatUtil.installRowFilter(search, table);
+
+        JPanel summary = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 4));
+        summary.add(ViewFormatUtil.statLabel("const: " + constCount + "/1"));
+        summary.add(countLabel("linear", linearCount, expectedLinear));
+        summary.add(countLabel("quadratic", quadCount, expectedQuad));
+
+        JPanel legend = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 2));
+        legend.add(ViewFormatUtil.makeSwatch(ViewFormatUtil.termTypeColor(-1, -1), "constant"));
+        legend.add(ViewFormatUtil.makeSwatch(ViewFormatUtil.termTypeColor(0, 0), "linear"));
+        legend.add(ViewFormatUtil.makeSwatch(ViewFormatUtil.termTypeColor(0, 1), "quadratic"));
+
+        JPanel header = new JPanel();
+        header.setLayout(new javax.swing.BoxLayout(header, javax.swing.BoxLayout.Y_AXIS));
+        header.add(summary);
+        header.add(legend);
+        header.add(search);
+
+        JPanel panel = new JPanel(new BorderLayout(0, 2));
+        panel.setBorder(BorderFactory.createTitledBorder(title));
+        panel.add(header, BorderLayout.NORTH);
+        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        return panel;
+    }
+
+    private static JLabel countLabel(String name, int actual, int expected) {
+        JLabel l = ViewFormatUtil.statLabel(name + ": " + actual + "/" + expected);
+        if (actual != expected) l.setForeground(Color.RED);
+        return l;
+    }
+
+    private static JTable buildTable(List<SampleRecord> samples, QuboResult result,
+            MatrixTabPanel matrixTabPanel, Runnable switchToMatrixTab) {
+        int n = result.nVars;
 
         // Column headers: #, Phase, x0…xn-1, Value, Derived
         int colCount = 3 + n + 1;
@@ -45,29 +101,10 @@ public class SamplingTabPanel extends JScrollPane {
             @Override public boolean isCellEditable(int r, int c) { return false; }
         };
 
-        for (int k = 0; k < cost.size(); k++) {
-            SampleRecord sr = cost.get(k);
+        for (int k = 0; k < samples.size(); k++) {
+            SampleRecord sr = samples.get(k);
             Object[] row = new Object[colCount];
             row[0] = k;
-            row[1] = sr.phase;
-            for (int i = 0; i < n; i++) row[2 + i] = sr.vector[i];
-            row[2 + n] = String.format("%.4f", sr.rawValue);
-            row[3 + n] = derivedLabel(sr.derivedI, sr.derivedJ);
-            model.addRow(row);
-        }
-
-        Object[] divider = new Object[colCount];
-        divider[0] = "—";
-        divider[1] = "── penalty pass ──";
-        for (int i = 0; i < n; i++) divider[2 + i] = null;
-        divider[2 + n] = null;
-        divider[3 + n] = null;
-        model.addRow(divider);
-
-        for (int k = 0; k < penalty.size(); k++) {
-            SampleRecord sr = penalty.get(k);
-            Object[] row = new Object[colCount];
-            row[0] = cost.size() + k;
             row[1] = sr.phase;
             for (int i = 0; i < n; i++) row[2 + i] = sr.vector[i];
             row[2 + n] = String.format("%.4f", sr.rawValue);
@@ -86,7 +123,7 @@ public class SamplingTabPanel extends JScrollPane {
         table.getColumnModel().getColumn(2 + n).setPreferredWidth(80);  // Value
         table.getColumnModel().getColumn(3 + n).setPreferredWidth(70);  // Derived
 
-        int dividerRow = cost.size();
+        int derivedCol = 3 + n;
         table.setDefaultRenderer(Object.class, new TableCellRenderer() {
             private final DefaultTableCellRenderer base = new DefaultTableCellRenderer();
 
@@ -95,15 +132,18 @@ public class SamplingTabPanel extends JScrollPane {
                     boolean isSelected, boolean hasFocus, int row, int col) {
                 Component c = base.getTableCellRendererComponent(
                         t, value, isSelected, hasFocus, row, col);
-                if (row == dividerRow) {
-                    c.setBackground(new Color(220, 220, 180));
-                    c.setForeground(Color.DARK_GRAY);
-                } else if (col >= 2 && col < 2 + n && value instanceof Integer) {
+                if (col >= 2 && col < 2 + n && value instanceof Integer) {
                     int bit = (Integer) value;
                     c.setBackground(bit == 1 ? new Color(80, 80, 80) : new Color(220, 220, 220));
                     c.setForeground(bit == 1 ? Color.WHITE : Color.DARK_GRAY);
                     ((JLabel) c).setHorizontalAlignment(SwingConstants.CENTER);
                     ((JLabel) c).setText(String.valueOf(bit));
+                } else if (col == derivedCol) {
+                    int modelRow = t.convertRowIndexToModel(row);
+                    SampleRecord sr = samples.get(modelRow);
+                    c.setBackground(isSelected ? t.getSelectionBackground()
+                            : ViewFormatUtil.termTypeColor(sr.derivedI, sr.derivedJ));
+                    c.setForeground(Color.BLACK);
                 } else {
                     c.setBackground(isSelected ? t.getSelectionBackground() : Color.WHITE);
                     c.setForeground(isSelected ? t.getSelectionForeground() : Color.BLACK);
@@ -117,14 +157,44 @@ public class SamplingTabPanel extends JScrollPane {
             @Override
             public void mouseMoved(MouseEvent e) {
                 int row = table.rowAtPoint(e.getPoint());
-                if (row < 0 || row == dividerRow) { table.setToolTipText(null); return; }
+                if (row < 0) { table.setToolTipText(null); return; }
+                int modelRow = table.convertRowIndexToModel(row);
+                SampleRecord sr = samples.get(modelRow);
                 Object[] rowData = new Object[colCount];
-                for (int c = 0; c < colCount; c++) rowData[c] = model.getValueAt(row, c);
-                table.setToolTipText(ViewFormatUtil.buildVectorTooltip(rowData, n, result.varLabels));
+                for (int c = 0; c < colCount; c++) rowData[c] = model.getValueAt(modelRow, c);
+                String base = ViewFormatUtil.buildVectorTooltip(rowData, n, result.varLabels);
+                String withPrefix = base.replaceFirst("^<html>", "<html>" + termTypePrefix(sr, result));
+                table.setToolTipText(withPrefix);
+            }
+        });
+
+        table.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() < 2) return;
+                int row = table.rowAtPoint(e.getPoint());
+                if (row < 0) return;
+                int modelRow = table.convertRowIndexToModel(row);
+                SampleRecord sr = samples.get(modelRow);
+                if (sr.derivedI == -1) return; // constant probe: no matrix cell to highlight
+                switchToMatrixTab.run();
+                matrixTabPanel.highlightCell(sr.derivedI, sr.derivedJ);
             }
         });
 
         return table;
+    }
+
+    private static String termTypePrefix(SampleRecord sr, QuboResult result) {
+        List<String> labels = result.varLabels;
+        if (sr.derivedI == -1) return "Constant probe<br>";
+        if (sr.derivedI == sr.derivedJ) {
+            String label = sr.derivedI < labels.size() ? labels.get(sr.derivedI) : "x" + sr.derivedI;
+            return "Linear probe for " + label + "<br>";
+        }
+        String li = sr.derivedI < labels.size() ? labels.get(sr.derivedI) : "x" + sr.derivedI;
+        String lj = sr.derivedJ < labels.size() ? labels.get(sr.derivedJ) : "x" + sr.derivedJ;
+        return "Quadratic probe for " + li + " × " + lj + "<br>";
     }
 
     private static String derivedLabel(int i, int j) {

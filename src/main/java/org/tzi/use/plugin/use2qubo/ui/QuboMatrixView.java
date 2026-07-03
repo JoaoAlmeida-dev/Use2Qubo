@@ -37,10 +37,11 @@ public class QuboMatrixView extends JPanel implements View {
         add(buildStatsPanel(result), BorderLayout.NORTH);
 
         JTabbedPane tabs = new JTabbedPane();
-        tabs.addTab("Matrix", new MatrixTabPanel(result));
+        MatrixTabPanel matrixTab = new MatrixTabPanel(result);
+        tabs.addTab("Matrix", matrixTab);
         tabs.addTab("Terms", new TermsTabPanel(result));
         tabs.addTab("Graph", new QuboGraphPanel(result));
-        tabs.addTab("Sampling", new SamplingTabPanel(result));
+        tabs.addTab("Sampling", new SamplingTabPanel(result, matrixTab, () -> tabs.setSelectedComponent(matrixTab)));
         tabs.addTab("Exactness", new ExactnessTabPanel(result));
         add(tabs, BorderLayout.CENTER);
 

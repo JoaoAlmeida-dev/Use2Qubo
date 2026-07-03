@@ -14,15 +14,17 @@ import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.swing.BorderFactory;
-import javax.swing.DefaultListModel;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JInternalFrame;
 import javax.swing.JLabel;
-import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -35,6 +37,7 @@ import org.tzi.use.parser.ocl.OCLCompiler;
 import org.tzi.use.plugin.use2qubo.qubo.QuboConfig;
 import org.tzi.use.plugin.use2qubo.util.PluginLog;
 import org.tzi.use.plugin.use2qubo.util.SimpleJsonWriter;
+import org.tzi.use.uml.mm.MAssociation;
 import org.tzi.use.uml.mm.MModel;
 import org.tzi.use.uml.ocl.expr.Expression;
 import org.tzi.use.uml.ocl.value.VarBindings;
@@ -43,7 +46,7 @@ public class QuboConfigView extends JPanel implements View {
 
     private final JTextField objectiveField = new JTextField(50);
     private final JCheckBox minimiseBox = new JCheckBox("Minimise", true);
-    private final DefaultListModel<String> listModel = new DefaultListModel<>();
+    private final Map<String, JCheckBox> assocCheckboxes = new LinkedHashMap<>();
     private final MModel model;
 
     public QuboConfigView(File configFile, MModel model) {
@@ -118,43 +121,29 @@ public class QuboConfigView extends JPanel implements View {
         panel.add(minimiseBox, fc);
         row++;
 
-        // Row 3: association list
+        // Row 3: association checkbox list
         lc.gridy = row; lc.anchor = GridBagConstraints.NORTHWEST;
         panel.add(new JLabel("Decision-var associations:"), lc);
 
-        JList<String> assocList = new JList<>(listModel);
-        assocList.setToolTipText("Names of UML associations whose links are binary decision variables.");
-        assocList.setVisibleRowCount(6);
-        JScrollPane scroll = new JScrollPane(assocList);
-
-        JButton addBtn = new JButton("Add");
-        addBtn.setToolTipText("Association name must match exactly the .use model association name.");
-        addBtn.addActionListener(e -> {
-            String name = JOptionPane.showInputDialog(QuboConfigView.this,
-                    "Association name:", "Add Decision Variable", JOptionPane.PLAIN_MESSAGE);
-            if (name != null && !name.trim().isEmpty()) listModel.addElement(name.trim());
-        });
-
-        JButton removeBtn = new JButton("Remove");
-        removeBtn.addActionListener(e -> {
-            int idx = assocList.getSelectedIndex();
-            if (idx >= 0) listModel.remove(idx);
-        });
-
-        JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-        btnRow.add(addBtn);
-        btnRow.add(removeBtn);
-
-        JPanel listPanel = new JPanel(new BorderLayout(0, 4));
-        listPanel.add(scroll, BorderLayout.CENTER);
-        listPanel.add(btnRow, BorderLayout.SOUTH);
+        JPanel checkboxPanel = new JPanel();
+        checkboxPanel.setLayout(new BoxLayout(checkboxPanel, BoxLayout.Y_AXIS));
+        List<MAssociation> assocs = new ArrayList<>(model.associations());
+        assocs.sort(Comparator.comparing(MAssociation::name));
+        for (MAssociation assoc : assocs) {
+            JCheckBox cb = new JCheckBox(assoc.name());
+            cb.setToolTipText("Links of this association become binary decision variables.");
+            assocCheckboxes.put(assoc.name(), cb);
+            checkboxPanel.add(cb);
+        }
+        JScrollPane scroll = new JScrollPane(checkboxPanel);
+        scroll.setPreferredSize(new java.awt.Dimension(0, 140));
 
         GridBagConstraints lpc = new GridBagConstraints();
         lpc.gridx = 1; lpc.gridy = row;
         lpc.fill = GridBagConstraints.BOTH;
         lpc.weightx = 1.0; lpc.weighty = 1.0;
         lpc.insets = new Insets(4, 0, 4, 4);
-        panel.add(listPanel, lpc);
+        panel.add(scroll, lpc);
 
         return panel;
     }
@@ -217,7 +206,10 @@ public class QuboConfigView extends JPanel implements View {
             QuboConfig cfg = QuboConfig.parse(raw);
             objectiveField.setText(cfg.objectiveExpr != null ? cfg.objectiveExpr : "");
             minimiseBox.setSelected(cfg.minimise);
-            cfg.decisionVarAssocs.forEach(listModel::addElement);
+            for (String assocName : cfg.decisionVarAssocs) {
+                JCheckBox cb = assocCheckboxes.get(assocName);
+                if (cb != null) cb.setSelected(true);
+            }
         } catch (IOException e) {
             PluginLog.warn("Could not pre-fill from config file", e);
         }
@@ -225,8 +217,8 @@ public class QuboConfigView extends JPanel implements View {
 
     private void doSave(File configFile) throws IOException {
         List<String> assocNames = new ArrayList<>();
-        for (int i = 0; i < listModel.getSize(); i++) {
-            assocNames.add(listModel.getElementAt(i));
+        for (Map.Entry<String, JCheckBox> e : assocCheckboxes.entrySet()) {
+            if (e.getValue().isSelected()) assocNames.add(e.getKey());
         }
         String expr = objectiveField.getText().trim();
         boolean minimise = minimiseBox.isSelected();

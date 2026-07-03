@@ -1,10 +1,10 @@
 package org.tzi.use.plugin.use2qubo.ui.tabs;
 
 import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
-import org.tzi.use.plugin.use2qubo.ui.CellColorScale;
 import org.tzi.use.plugin.use2qubo.ui.ExpressionPanel;
 import org.tzi.use.plugin.use2qubo.ui.ViewFormatUtil;
 
+import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JScrollPane;
@@ -13,15 +13,20 @@ import javax.swing.JTable;
 import javax.swing.ListCellRenderer;
 import javax.swing.ToolTipManager;
 import javax.swing.UIManager;
+import javax.swing.border.Border;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.event.MouseEvent;
 
 /** "Matrix" tab: colour-coded Q-matrix table, row/column variable index, and the algebraic expression below it. */
 public class MatrixTabPanel extends JSplitPane {
+
+    private final JTable matrixTable;
+    private final JTable idxTable;
 
     public MatrixTabPanel(QuboResult result) {
         super(JSplitPane.VERTICAL_SPLIT);
@@ -74,7 +79,9 @@ public class MatrixTabPanel extends JSplitPane {
             }
         };
         table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        table.setCellSelectionEnabled(true);
         table.setDefaultRenderer(Double.class, new ColoredCellRenderer(capturedMaxAbs));
+        this.matrixTable = table;
 
         for (int c = 0; c < n; c++) {
             table.getColumnModel().getColumn(c).setHeaderValue(colNames[c]);
@@ -108,8 +115,16 @@ public class MatrixTabPanel extends JSplitPane {
         JTable idxTable = new JTable(idxModel);
         idxTable.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
         idxTable.getColumnModel().getColumn(0).setPreferredWidth(40);
+        this.idxTable = idxTable;
         JScrollPane idxScroll = new JScrollPane(idxTable);
         idxScroll.setPreferredSize(new Dimension(250, 0));
+
+        javax.swing.event.ListSelectionListener syncListener = e -> {
+            if (e.getValueIsAdjusting()) return;
+            highlightVariablesForCell(table.getSelectedRow(), table.getSelectedColumn());
+        };
+        table.getSelectionModel().addListSelectionListener(syncListener);
+        table.getColumnModel().getSelectionModel().addListSelectionListener(syncListener);
 
         JSplitPane hSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, matrixScroll, idxScroll);
         hSplit.setResizeWeight(0.75);
@@ -119,7 +134,29 @@ public class MatrixTabPanel extends JSplitPane {
         setResizeWeight(0.7);
     }
 
+    /** Selects and scrolls to the Q-matrix cell at (i, j); called from the Sampling tab. */
+    public void highlightCell(int i, int j) {
+        if (i < 0 || j < 0 || i >= matrixTable.getRowCount() || j >= matrixTable.getColumnCount()) return;
+        matrixTable.requestFocusInWindow();
+        matrixTable.changeSelection(i, j, false, false);
+        matrixTable.scrollRectToVisible(matrixTable.getCellRect(i, j, true));
+    }
+
+    /** Highlights the variable-index row(s) for the selected Q-matrix cell (i, j) in the variable table. */
+    private void highlightVariablesForCell(int i, int j) {
+        if (i < 0 || j < 0 || i >= idxTable.getRowCount() || j >= idxTable.getRowCount()) return;
+        idxTable.getSelectionModel().setValueIsAdjusting(true);
+        idxTable.getSelectionModel().clearSelection();
+        idxTable.getSelectionModel().addSelectionInterval(i, i);
+        if (j != i) idxTable.getSelectionModel().addSelectionInterval(j, j);
+        idxTable.getSelectionModel().setValueIsAdjusting(false);
+        idxTable.scrollRectToVisible(idxTable.getCellRect(i, 0, true));
+    }
+
     private static final class ColoredCellRenderer extends JLabel implements TableCellRenderer {
+        private static final Border SELECTED_BORDER = BorderFactory.createLineBorder(Color.ORANGE, 3);
+        private static final Border UNSELECTED_BORDER = BorderFactory.createEmptyBorder(3, 3, 3, 3);
+
         private final double maxAbs;
 
         ColoredCellRenderer(double maxAbs) {
@@ -133,7 +170,8 @@ public class MatrixTabPanel extends JSplitPane {
                 boolean isSelected, boolean hasFocus, int row, int col) {
             double v = (value instanceof Double) ? (Double) value : 0.0;
             setText(String.format("%.3f", v));
-            setBackground(CellColorScale.forValue(v, maxAbs));
+            setBackground(ViewFormatUtil.colorForValue(v, maxAbs));
+            setBorder(isSelected ? SELECTED_BORDER : UNSELECTED_BORDER);
             return this;
         }
     }
