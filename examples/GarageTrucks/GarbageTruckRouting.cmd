@@ -4,16 +4,14 @@
 --
 -- Scenario: 7 nodes (1 depot, 4 intersections, 1 disposal),
 --           3 garbage bins, 2 trucks.
--- Solution animated below: 1 active truck covers all 3 bins via all 6 stops
--- (depot, n2, n3, n4, n5, disposal); 1 truck remains inactive. This is a
--- feasible, check-passing scenario, not necessarily the QUBO's cost-minimal
--- one: qubo_config.json's objective (Route::edgeCost(), see
--- export_config_schema.md) sums travel time over every directly-connected
--- pair of *selected* nodes, not strictly the visit-order path, so annealing
--- the derived qubo.json may find a cheaper feasible solution (e.g. using the
--- n2->disposal/n3->disposal shortcuts and omitting n5) -- see
--- experiments/results/garagetrucks_annealing_result.json for what the
--- annealer actually finds.
+-- Solution animated below: 1 active truck covers all 3 bins via 5 selected
+-- RouteRoad edges (depot->n2->n3->n4->n5->disposal, 30 min total); 1 truck
+-- remains unassigned (no route). RouteRoad(Route,Road) is the decision
+-- variable: edgeCost() sums travelTime directly over selected edges, so
+-- this scenario's road graph has no shortcut-over-counting ambiguity (the
+-- two shortcuts n2->disposal/n3->disposal are simply not selected).
+-- edgeCost() = 30 <= fuelRange 100, so fuelPenalty() = max(0, 30-100)^2 = 0,
+-- i.e. this is a "gold" feasible instance for the fuel-range penalty too.
 --
 -- Load with: open GarbageTruckRouting.cmd
 -- ===========================================================
@@ -63,7 +61,7 @@
 !insert (n5, disposal) into Road
 !set Road.allInstances->any(r | r.origin = n5 and r.destination = disposal).travelTime := 4.0
 
--- Direct shortcuts
+-- Direct shortcuts (not used by the animated route below)
 !insert (n2, disposal) into Road
 !set Road.allInstances->any(r | r.origin = n2 and r.destination = disposal).travelTime := 20.0
 
@@ -74,16 +72,16 @@
 -- 3. Create garbage bins
 -- -----------------------------------------------------------
 !create bin1       : GarbageBin
-!set bin1.maxFill     := 2.0   -- 2 m3 capacity
-!set bin1.currentFill := 1.5   -- 75% full
+!set bin1.maxFill     := 1.0   -- 1000 L capacity
+!set bin1.currentFill := 0.0   -- empty
 
 !create bin2       : GarbageBin
-!set bin2.maxFill     := 2.0
-!set bin2.currentFill := 0.8   -- 40% full
+!set bin2.maxFill     := 1.0   -- 1000 L capacity
+!set bin2.currentFill := 0.98  -- 980 L, nearly full
 
 !create bin3       : GarbageBin
-!set bin3.maxFill     := 3.0   -- larger bin
-!set bin3.currentFill := 2.0   -- 67% full
+!set bin3.maxFill     := 1.0   -- 1000 L capacity
+!set bin3.currentFill := 0.5   -- 500 L
 
 -- Place bins at intersections
 !insert (bin1, n2) into LocatedAt
@@ -94,20 +92,17 @@
 -- 4. Create trucks
 -- -----------------------------------------------------------
 !create truck1 : Truck
-!set truck1.truckId           := 1
-!set truck1.fuelRange         := 100.0  -- can drive 100 km
-!set truck1.maxCapacity       := 10.0   -- holds 10 m3
-!set truck1.currentLoad       := 0.0
-!set truck1.distanceTravelled := 0.0
-!set truck1.active            := true
+!set truck1.truckId     := 1
+!set truck1.fuelRange   := 100.0  -- can drive 100 km
+!set truck1.maxCapacity := 10.0   -- holds 10 m3
+!set truck1.currentLoad := 0.0
 
 !create truck2 : Truck
-!set truck2.truckId           := 2
-!set truck2.fuelRange         := 100.0
-!set truck2.maxCapacity       := 10.0
-!set truck2.currentLoad       := 0.0
-!set truck2.distanceTravelled := 0.0
-!set truck2.active            := false  -- not needed; all bins fit in truck1
+!set truck2.truckId     := 2
+!set truck2.fuelRange   := 100.0
+!set truck2.maxCapacity := 10.0
+!set truck2.currentLoad := 0.0
+-- truck2 gets no route below; not needed since all bins fit on truck1's route.
 
 -- -----------------------------------------------------------
 -- 5. Create the single active route
@@ -118,36 +113,20 @@
 -- Assign route to truck1
 !insert (route1, truck1) into AssignedTo
 
--- Define ordered stop sequence with explicit step indices (0-indexed).
--- step is the QUBO variable index; AutoQUBO uses it to build symbolic
--- Q matrix entries per (Route, step, Node) triple.
-!insert (route1, depot) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = depot).step := 0
-
-!insert (route1, n2) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n2).step := 1
-
-!insert (route1, n3) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n3).step := 2
-
-!insert (route1, n4) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n4).step := 3
-
-!insert (route1, n5) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n5).step := 4
-
-!insert (route1, disposal) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = disposal).step := 5
+-- Select the edges this route uses (RouteRoad is the core decision variable)
+!insert (route1, Road.allInstances->any(r | r.origin = depot and r.destination = n2)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n2 and r.destination = n3)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n3 and r.destination = n4)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n4 and r.destination = n5)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n5 and r.destination = disposal)) into RouteRoad
 
 -- -----------------------------------------------------------
 -- 6. Simulate garbage collection along the route
 -- -----------------------------------------------------------
 
--- Truck visits bin1 at n2
-!openter truck1 collectGarbage(bin1)
-!set truck1.currentLoad := truck1.currentLoad + bin1.currentFill
-!set bin1.currentFill   := 0.0
-!opexit
+-- bin1 at n2 is already empty (currentFill = 0); collectGarbage's
+-- binNeedsCollection precondition requires currentFill > 0, so it is not
+-- called here -- an empty bin needs no pickup.
 
 -- Truck visits bin2 at n3
 !openter truck1 collectGarbage(bin2)
@@ -161,18 +140,13 @@
 !set bin3.currentFill   := 0.0
 !opexit
 
--- Update truck distance (5+8+6+7+4 = 30 min, set manually here).
--- In a solver run, distanceTravelled is a Real-valued post-solve attribute
--- derived from the selected RouteStop links; it is not encoded in the QUBO Q matrix.
-!set truck1.distanceTravelled := 30.0
-
 -- -----------------------------------------------------------
 -- 7. Check all constraints
 -- -----------------------------------------------------------
 check
 
 -- Expected: all invariants true.
--- truck1.currentLoad = 1.5 + 0.8 + 2.0 = 4.3 m3  (<= maxCapacity 10.0)
--- truck1.distanceTravelled = 30.0 km              (<= fuelRange 100.0)
+-- truck1.currentLoad = 0.98 + 0.5 = 1.48 m3  (<= maxCapacity 10.0)
+-- edgeCost() = 5+8+6+7+4 = 30.0 min; fuelPenalty() = max(0, 30-100)^2 = 0
 -- All bins have currentFill = 0 (collected)
--- truck2 is inactive and has no route
+-- truck2 has no route

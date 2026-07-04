@@ -1,11 +1,10 @@
 {
-  "decision_var_associations": ["RouteStop", "AssignedTo"],
+  "decision_var_associations": ["RouteRoad", "AssignedTo"],
   "decision_vars": [
     {
       "type": "link",
-      "association": "RouteStop",
-      "domain": ["Route", "Node"],
-      "index_attribute": "step"
+      "association": "RouteRoad",
+      "domain": ["Route", "Road"]
     },
     {
       "type": "link",
@@ -14,7 +13,8 @@
     }
   ],
   "objective": {
-    "expression": "Route.allInstances->collect(r | r.edgeCost())->sum() + 1000 * GarbageBin.allInstances->collect(b | b.coveragePenalty())->sum() + 1000 * Route.allInstances->collect(r | r.shapePenalty())->sum()",
-    "minimise": true
+    "expression": "Route.allInstances->collect(r | r.edgeCost())->sum()",
+    "minimise": true,
+    "max_degree": 7
   }
 }

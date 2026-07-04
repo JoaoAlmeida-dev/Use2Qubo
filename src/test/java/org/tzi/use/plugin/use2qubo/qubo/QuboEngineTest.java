@@ -11,25 +11,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class QuboEngineTest {
 
     @Test
-    void garageTrucksEscalatesToDegreeThreeAndQuadratizesExactly() throws Exception {
-        // RouteRoad(Route,Road) edge-based decision variables make edgeCost()
-        // linear and Route::fuelPenalty()'s slack-variable encoding (Lucas 2014
-        // Sec 2.3) genuinely degree-2 exact in isolation. GarbageBin::coveragePenalty()/
-        // Route::shapePenalty(), however, aggregate an exists/OR over the (small, degree-3)
-        // set of incident-Road decision variables per node in this scenario, so the
-        // full objective needs degree-3 sampling (AutoQUBO Sec 4.3) before it is exact;
-        // the resulting cubic terms are then reduced via Rosenberg quadratization
-        // (3 ancilla variables), and the reduction is itself verified exact.
+    void garageTrucksEscalatesToDegreeSevenAndQuadratizesExactly() throws Exception {
+        // Feasibility (routeConnected, fuelWithinRange, capacityWithinRange, binCovered,
+        // routeTouchesDepot/Disposal) is expressed entirely as plain OCL invariants; the
+        // objective is pure edgeCost(). QuboEngine's own sampling/quadratization pass derives
+        // an exact QUBO for these once qubo_config.json's max_degree covers the true arity
+        // (the 7 RouteRoad candidates for this scenario's one route) -- no manual polynomial
+        // rewrite needed, per QuboEngine.logExactnessOutcome's own "raise max_degree" guidance.
         MSystem system = UseFixtures.buildSystem(UseFixtures.garageTrucksUse(), UseFixtures.garageTrucksCmd());
         QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.garageTrucksConfig().toPath());
 
         QuboResult result = QuboEngine.derive(ctx, null);
 
         assertTrue(result.exact);
-        assertEquals(3, result.polyDegree);
-        assertEquals(3, result.nAncillaVars);
-        assertEquals(19, result.nVars);
-        assertEquals(19, result.varLabels.size());
+        assertEquals(7, result.polyDegree);
+        assertEquals(238, result.nAncillaVars);
+        assertEquals(247, result.nVars);
+        assertEquals(247, result.varLabels.size());
         for (String key : result.quadratic.keySet()) {
             String[] parts = key.split(",");
             int i = Integer.parseInt(parts[0]);
