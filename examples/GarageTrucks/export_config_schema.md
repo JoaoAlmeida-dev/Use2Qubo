@@ -20,7 +20,7 @@ An entry of `1` means the link exists in the solution; `0` means it does not.
 
 **Example:**
 ```json
-"decision_var_associations": ["RouteStop", "AssignedTo"]
+"decision_var_associations": ["RouteRoad", "AssignedTo", "FuelSlack"]
 ```
 
 ---
@@ -88,8 +88,8 @@ Must also appear in `decision_var_associations`.
 Names of the two participating classes, in the order `[source, target]`.
 Used by the engine to enumerate link instances and label Q matrix axes.
 
-**Example:** `["Route", "Node"]` enumerates all `(Route, Node)` link pairs
-in `RouteStop`.
+**Example:** `["Route", "Road"]` enumerates all `(Route, Road)` link pairs
+in `RouteRoad`.
 
 ### `decision_vars[].index_attribute`
 
@@ -108,8 +108,10 @@ When present, the engine uses the attribute value as the column/row index
 within the variable group, enabling symbolic Q matrix generation for entire
 problem classes rather than per-instance sampling.
 
-**Example:** `"index_attribute": "step"` on `RouteStop` produces Q matrix
-entries indexed by `(route_id, step, node_id)`.
+Not used by this example: neither `RouteRoad` nor `FuelSlack` carries an
+attribute suitable as a positional index, and none is needed since neither
+`edgeCost()` nor `fuelPenalty()` depend on link insertion order (only on
+which links are selected).
 
 ---
 
@@ -139,59 +141,60 @@ AutoQUBO can compute Q matrix coefficients by sampling.
 Route.allInstances->collect(r | r.edgeCost())->sum()
 + 1000 * GarbageBin.allInstances->collect(b | b.coveragePenalty())->sum()
 + 1000 * Route.allInstances->collect(r | r.shapePenalty())->sum()
++ 1000 * Route.allInstances->collect(r | r.fuelPenalty())->sum()
 ```
 
-The first term (`Route::edgeCost()`) sums `Road.travelTime` over every road
-edge whose origin *and* destination are both selected `RouteStop` nodes for
-that route — a genuine product of two decision variables per edge, so it is
-degree-2 exact. It deliberately does **not** use `step`/`roadToNext()`
-(consecutive-stop-in-order travel cost): `RouteStop` is an `associationclass`
-with its own `step` attribute, and `QuboEngine`'s temporary sampling links
-never populate association-class-owned attributes — `step` sits at its
-default for every sampled link, silently breaking any term that reads it
-(`nextStop()`, `roadToNext()`, and the old `stepUniquenessPenalty()`),
-independent of aggregation degree. This is not a `QuboEngine` bug to patch —
-the plugin is domain-agnostic and must not set model-specific attributes —
-it is a model-authoring constraint: **objective/penalty operations must only
-depend on decision-variable link presence and static attributes, never on an
-association-class's own attributes or on an `ordered` role's insertion
-order**, since neither is populated/meaningful during sampling.
+The first term (`Route::edgeCost()`) sums `travelTime` directly over every
+`RouteRoad`-selected `Road` edge for that route — a genuine LINEAR
+(degree-1) sum of decision variables. This replaces an earlier
+`RouteStop(Route,Node)`-based "induced subgraph" formulation that inferred
+edge use from both endpoint nodes being selected, which over-counted
+shortcut edges once their endpoints were selected for other reasons.
+Selecting edges directly (`RouteRoad(Route,Road)`) removes that bug
+structurally rather than documenting it as a trade-off.
 
-**Trade-off, documented not hidden:** because `edgeCost()` sums over *every*
-directly-connected pair of selected nodes rather than strictly consecutive
-visit-order stops, it is an "induced subgraph cost", not literal path cost.
-For this scenario's road graph, once `n2`, `n3` and `disposal` are all
-selected (forced by `coveragePenalty()`/`shapePenalty()`), the two shortcut
-edges (`n2→disposal`, `n3→disposal`) are counted too, even though a single
-simple path wouldn't traverse them.
+The second and third terms (`coveragePenalty()`, `shapePenalty()`) are
+**manually-weighted penalty terms**, not automatic per-invariant penalties.
+Both aggregate an `exists`/OR across every `Road` edge incident to a given
+node, over the `RouteRoad` decision variable — a step function over
+potentially more than two decision variables, which `QuboEngine` cannot
+guarantee to represent exactly as a degree-2 polynomial (see its class
+Javadoc). Unlike the previous `RouteStop(Route,Node)` encoding — where
+coverage collapsed to reading a single decision variable per node in this
+one-route scenario — a node under edge-based decision variables typically
+has 2+ incident `Road`s, so this exactness collapse no longer applies even
+here. This is a disclosed trade-off of the `RouteRoad` encoding, not hidden;
+validate actual exactness by running the CLI/tests rather than assuming it.
 
-The remaining two terms are **manually-weighted penalty terms**, not
-automatic per-invariant penalties. They encode constraints that were
-previously written as boolean `inv`s (`mustBeCoveredIfNotEmpty`,
-`collectedAtMostOnce`, `minimumStops`, `startsAtDepot`,
-`endsAtDisposalFacility`) but each of those counted or existence-checked
-across many `RouteStop`/`AssignedTo` decision-var instances at once — a
-step function over more than two decision variables, which `QuboEngine`
-cannot represent exactly as a degree-2 polynomial (see its class Javadoc).
-Moving them into named `.use` operations (`coveragePenalty()`,
-`shapePenalty()`) returning an integer violation *magnitude* instead, and
-summing them here with an explicit weight, keeps the objective expression
-exact and auditable while still deriving purely from `RouteStop`/
-`AssignedTo` decision variables. `coveragePenalty()` is exact only because
-this scenario has a single `Route` instance (coverage collapses to one
-decision variable); a multi-route scenario would need the same
-pairwise-decomposition treatment as `edgeCost()`/`shapePenalty()`.
+The fourth term (`Route::fuelPenalty()`) enforces the truck's fuel-range
+budget via a **slack-variable encoding** (Lucas 2014, "Ising formulations of
+many NP problems", Sec 2.3), *not* a hinge `max(0, edgeCost() - fuelRange)`
+— a hinge is a threshold function over a quadratic quantity and therefore
+not itself degree-2 exact under any encoding. `FuelSlack(Route,SlackUnit)`
+is a third decision variable: `SlackUnit` instances `bit0..bit6` carry
+weights `1,2,4,...,64` (a 7-bit binary expansion covering 0..127, ≥ this
+scenario's `fuelRange` of 100). `fuelPenalty()` computes
+`gap = fuelRange - edgeCost() - (sum of selected bit weights)` and returns
+`gap * gap`. Since `edgeCost()` is linear in the `RouteRoad` bits and the
+slack sum is linear in the `FuelSlack` bits, `gap²` expands to only
+pairwise products of decision variables — genuinely degree-2 exact, not an
+approximation. `QuboEngine`'s pairwise sampling loops over all flattened
+decision variables regardless of source association, so the
+`RouteRoad`/`FuelSlack` cross-terms introduced by squaring `gap` are picked
+up with no plugin code change.
 
-The weight `1000` was chosen empirically (raised from an initial `100`, which
-proved too weak under the old, non-exact objective: a classical
-simulated-annealing run found skipping all bin stops cheaper than the full
-route). With the objective now degree-2 exact end to end, re-validate this
-weight against the new export — it is not derived automatically like the
-invariant penalty weight `B` computed by `QuboEngine.computePenaltyWeight`,
-so tune per scenario and validate by annealing the exported `qubo.json`.
-The expression depends only on `RouteStop`/`AssignedTo` links and static
-model attributes — all derivable from decision variables — so AutoQUBO can
-sample it symbolically.
+The weight `1000` on the coverage/shape/fuel penalty terms was chosen
+empirically for the previous (non-exact) objective and has **not** been
+re-validated against this export — re-tune per scenario and validate by
+deriving `qubo.json` and inspecting `QuboEngine`'s exactness diagnostics
+(and, for coverage/shape specifically, by annealing the export), since it is
+not derived automatically like the invariant penalty weight `B` computed by
+`QuboEngine.computePenaltyWeight`. Note `fuelPenalty()` is already a squared
+magnitude, so its weight may need separate tuning from the other three terms
+rather than sharing the same `1000`.
+The expression depends only on `RouteRoad`/`AssignedTo`/`FuelSlack` links and
+static model attributes — all derivable from decision variables — so
+AutoQUBO can sample it symbolically.
 
 **Model-defined helpers:** operations declared on model classes in the `.use` file
 can be called from the objective expression.
@@ -234,9 +237,13 @@ file.
 The engine encodes constraints as QUBO penalty terms separately, using the
 `penalty_method` weight to scale them.
 
-Constraints that operate on `Real`-valued attributes (`Truck.currentLoad`,
-`Truck.distanceTravelled`) cannot be directly encoded in the binary Q matrix.
-They are verified post-solve against the decoded solution, not enforced during
-annealing.
-This is a known scope limitation; full binary encoding of capacity and fuel
-constraints is future work.
+Constraints that operate directly on `Real`-valued attributes (e.g.
+`Truck.currentLoad` vs `maxCapacity`) cannot be directly encoded in the
+binary Q matrix and are instead verified post-solve against the decoded
+solution, not enforced during annealing; this is a known scope limitation
+for truck capacity. Fuel-range feasibility, in contrast, *is* encoded
+directly in the objective via the slack-variable technique described above
+(`Route::fuelPenalty()`), since a linear quantity (`edgeCost()`) compared
+against a constant threshold can be turned into a genuinely degree-2-exact
+penalty with slack bits; the same technique could in principle be applied
+to `Truck.currentLoad <= maxCapacity`, left as future work.

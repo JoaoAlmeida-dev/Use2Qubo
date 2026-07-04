@@ -4,10 +4,13 @@
 --
 -- Scenario: 50 nodes (1 depot, 48 intersections, 1 disposal)
 --           laid out as a 5x10 directed grid (road = +1 right / +10 down),
---           20 garbage bins, 3 trucks, all 3 active on disjoint monotone
+--           20 garbage bins, 3 trucks, all 3 assigned disjoint monotone
 --           staircase routes from depot (node 1) to disposal (node 50).
 -- Each route uses 9 horizontal + 4 vertical road segments (60 min total),
 -- matching the grid's only two travelTime values (4.0 horiz / 6.0 vert).
+-- RouteRoad(Route,Road) is the decision variable: each route's edges are
+-- selected directly below, so edgeCost() reads back exactly 60.0 with no
+-- shortcut-over-counting ambiguity (this grid has no shortcut edges).
 --
 -- Load with: open GarbageTruckRoutingV2.cmd
 -- ===========================================================
@@ -346,68 +349,68 @@
 !set Road.allInstances->any(r | r.origin = n40 and r.destination = disposal).travelTime := 6.0
 
 -- -----------------------------------------------------------
--- 3. Create garbage bins (20 total, 3.0 m3 capacity each)
+-- 3. Create garbage bins (20 total, 1000 L / 1.0 m3 capacity each)
 -- -----------------------------------------------------------
 !create bin1       : GarbageBin
-!set bin1.maxFill     := 3.0
-!set bin1.currentFill := 1.0
+!set bin1.maxFill     := 1.0
+!set bin1.currentFill := 0.0
 !create bin2       : GarbageBin
-!set bin2.maxFill     := 3.0
-!set bin2.currentFill := 1.5
+!set bin2.maxFill     := 1.0
+!set bin2.currentFill := 0.98
 !create bin3       : GarbageBin
-!set bin3.maxFill     := 3.0
-!set bin3.currentFill := 2.0
+!set bin3.maxFill     := 1.0
+!set bin3.currentFill := 0.4
 !create bin4       : GarbageBin
-!set bin4.maxFill     := 3.0
-!set bin4.currentFill := 0.8
+!set bin4.maxFill     := 1.0
+!set bin4.currentFill := 0.45
 !create bin5       : GarbageBin
-!set bin5.maxFill     := 3.0
-!set bin5.currentFill := 1.2
+!set bin5.maxFill     := 1.0
+!set bin5.currentFill := 0.5
 !create bin6       : GarbageBin
-!set bin6.maxFill     := 3.0
-!set bin6.currentFill := 1.8
+!set bin6.maxFill     := 1.0
+!set bin6.currentFill := 0.55
 !create bin7       : GarbageBin
-!set bin7.maxFill     := 3.0
-!set bin7.currentFill := 2.2
+!set bin7.maxFill     := 1.0
+!set bin7.currentFill := 0.6
 !create bin8       : GarbageBin
-!set bin8.maxFill     := 3.0
-!set bin8.currentFill := 0.6
+!set bin8.maxFill     := 1.0
+!set bin8.currentFill := 0.42
 !create bin9       : GarbageBin
-!set bin9.maxFill     := 3.0
-!set bin9.currentFill := 1.4
+!set bin9.maxFill     := 1.0
+!set bin9.currentFill := 0.48
 !create bin10       : GarbageBin
-!set bin10.maxFill     := 3.0
-!set bin10.currentFill := 2.4
+!set bin10.maxFill     := 1.0
+!set bin10.currentFill := 0.52
 !create bin11       : GarbageBin
-!set bin11.maxFill     := 3.0
-!set bin11.currentFill := 1.0
+!set bin11.maxFill     := 1.0
+!set bin11.currentFill := 0.58
 !create bin12       : GarbageBin
-!set bin12.maxFill     := 3.0
-!set bin12.currentFill := 1.6
+!set bin12.maxFill     := 1.0
+!set bin12.currentFill := 0.41
 !create bin13       : GarbageBin
-!set bin13.maxFill     := 3.0
-!set bin13.currentFill := 2.0
+!set bin13.maxFill     := 1.0
+!set bin13.currentFill := 0.47
 !create bin14       : GarbageBin
-!set bin14.maxFill     := 3.0
-!set bin14.currentFill := 0.9
+!set bin14.maxFill     := 1.0
+!set bin14.currentFill := 0.53
 !create bin15       : GarbageBin
-!set bin15.maxFill     := 3.0
-!set bin15.currentFill := 1.3
+!set bin15.maxFill     := 1.0
+!set bin15.currentFill := 0.44
 !create bin16       : GarbageBin
-!set bin16.maxFill     := 3.0
-!set bin16.currentFill := 1.7
+!set bin16.maxFill     := 1.0
+!set bin16.currentFill := 0.49
 !create bin17       : GarbageBin
-!set bin17.maxFill     := 3.0
-!set bin17.currentFill := 2.1
+!set bin17.maxFill     := 1.0
+!set bin17.currentFill := 0.51
 !create bin18       : GarbageBin
-!set bin18.maxFill     := 3.0
-!set bin18.currentFill := 0.7
+!set bin18.maxFill     := 1.0
+!set bin18.currentFill := 0.56
 !create bin19       : GarbageBin
-!set bin19.maxFill     := 3.0
-!set bin19.currentFill := 1.5
+!set bin19.maxFill     := 1.0
+!set bin19.currentFill := 0.59
 !create bin20       : GarbageBin
-!set bin20.maxFill     := 3.0
-!set bin20.currentFill := 1.9
+!set bin20.maxFill     := 1.0
+!set bin20.currentFill := 0.43
 
 -- Place bins at intersections along the three routes
 !insert (bin1, n2) into LocatedAt
@@ -432,34 +435,28 @@
 !insert (bin20, n49) into LocatedAt
 
 -- -----------------------------------------------------------
--- 4. Create trucks (3 active)
+-- 4. Create trucks (3, each assigned one route)
 -- -----------------------------------------------------------
 !create truck1 : Truck
-!set truck1.truckId           := 1
-!set truck1.fuelRange         := 100.0  -- can drive 100 km
-!set truck1.maxCapacity       := 15.0   -- holds 15 m3
-!set truck1.currentLoad       := 0.0
-!set truck1.distanceTravelled := 0.0
-!set truck1.active            := true
+!set truck1.truckId     := 1
+!set truck1.fuelRange   := 100.0  -- can drive 100 km
+!set truck1.maxCapacity := 15.0   -- holds 15 m3
+!set truck1.currentLoad := 0.0
 
 !create truck2 : Truck
-!set truck2.truckId           := 2
-!set truck2.fuelRange         := 100.0  -- can drive 100 km
-!set truck2.maxCapacity       := 15.0   -- holds 15 m3
-!set truck2.currentLoad       := 0.0
-!set truck2.distanceTravelled := 0.0
-!set truck2.active            := true
+!set truck2.truckId     := 2
+!set truck2.fuelRange   := 100.0  -- can drive 100 km
+!set truck2.maxCapacity := 15.0   -- holds 15 m3
+!set truck2.currentLoad := 0.0
 
 !create truck3 : Truck
-!set truck3.truckId           := 3
-!set truck3.fuelRange         := 100.0  -- can drive 100 km
-!set truck3.maxCapacity       := 15.0   -- holds 15 m3
-!set truck3.currentLoad       := 0.0
-!set truck3.distanceTravelled := 0.0
-!set truck3.active            := true
+!set truck3.truckId     := 3
+!set truck3.fuelRange   := 100.0  -- can drive 100 km
+!set truck3.maxCapacity := 15.0   -- holds 15 m3
+!set truck3.currentLoad := 0.0
 
 -- -----------------------------------------------------------
--- 5. Create the three active routes
+-- 5. Create the three routes
 -- -----------------------------------------------------------
 !create route1 : Route
 !set route1.totalTravelTime := 60.0   -- 9x4.0 + 4x6.0 = 60 min
@@ -467,35 +464,20 @@
 -- Assign route1 to truck1
 !insert (route1, truck1) into AssignedTo
 
--- Route1 ordered stop sequence with explicit step indices (0-indexed)
-!insert (route1, depot) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = depot).step := 0
-!insert (route1, n2) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n2).step := 1
-!insert (route1, n3) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n3).step := 2
-!insert (route1, n13) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n13).step := 3
-!insert (route1, n14) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n14).step := 4
-!insert (route1, n15) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n15).step := 5
-!insert (route1, n25) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n25).step := 6
-!insert (route1, n26) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n26).step := 7
-!insert (route1, n27) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n27).step := 8
-!insert (route1, n37) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n37).step := 9
-!insert (route1, n38) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n38).step := 10
-!insert (route1, n39) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n39).step := 11
-!insert (route1, n49) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = n49).step := 12
-!insert (route1, disposal) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route1 and rs.stops = disposal).step := 13
+-- Route1: select the edges it uses (RouteRoad is the decision variable)
+!insert (route1, Road.allInstances->any(r | r.origin = depot and r.destination = n2)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n2 and r.destination = n3)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n3 and r.destination = n13)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n13 and r.destination = n14)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n14 and r.destination = n15)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n15 and r.destination = n25)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n25 and r.destination = n26)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n26 and r.destination = n27)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n27 and r.destination = n37)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n37 and r.destination = n38)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n38 and r.destination = n39)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n39 and r.destination = n49)) into RouteRoad
+!insert (route1, Road.allInstances->any(r | r.origin = n49 and r.destination = disposal)) into RouteRoad
 
 !create route2 : Route
 !set route2.totalTravelTime := 60.0   -- 9x4.0 + 4x6.0 = 60 min
@@ -503,35 +485,20 @@
 -- Assign route2 to truck2
 !insert (route2, truck2) into AssignedTo
 
--- Route2 ordered stop sequence with explicit step indices (0-indexed)
-!insert (route2, depot) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route2 and rs.stops = depot).step := 0
-!insert (route2, n11) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route2 and rs.stops = n11).step := 1
-!insert (route2, n12) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route2 and rs.stops = n12).step := 2
-!insert (route2, n13) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route2 and rs.stops = n13).step := 3
-!insert (route2, n23) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route2 and rs.stops = n23).step := 4
-!insert (route2, n24) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route2 and rs.stops = n24).step := 5
-!insert (route2, n25) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route2 and rs.stops = n25).step := 6
-!insert (route2, n35) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route2 and rs.stops = n35).step := 7
-!insert (route2, n36) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route2 and rs.stops = n36).step := 8
-!insert (route2, n37) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route2 and rs.stops = n37).step := 9
-!insert (route2, n47) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route2 and rs.stops = n47).step := 10
-!insert (route2, n48) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route2 and rs.stops = n48).step := 11
-!insert (route2, n49) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route2 and rs.stops = n49).step := 12
-!insert (route2, disposal) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route2 and rs.stops = disposal).step := 13
+-- Route2: select the edges it uses (RouteRoad is the decision variable)
+!insert (route2, Road.allInstances->any(r | r.origin = depot and r.destination = n11)) into RouteRoad
+!insert (route2, Road.allInstances->any(r | r.origin = n11 and r.destination = n12)) into RouteRoad
+!insert (route2, Road.allInstances->any(r | r.origin = n12 and r.destination = n13)) into RouteRoad
+!insert (route2, Road.allInstances->any(r | r.origin = n13 and r.destination = n23)) into RouteRoad
+!insert (route2, Road.allInstances->any(r | r.origin = n23 and r.destination = n24)) into RouteRoad
+!insert (route2, Road.allInstances->any(r | r.origin = n24 and r.destination = n25)) into RouteRoad
+!insert (route2, Road.allInstances->any(r | r.origin = n25 and r.destination = n35)) into RouteRoad
+!insert (route2, Road.allInstances->any(r | r.origin = n35 and r.destination = n36)) into RouteRoad
+!insert (route2, Road.allInstances->any(r | r.origin = n36 and r.destination = n37)) into RouteRoad
+!insert (route2, Road.allInstances->any(r | r.origin = n37 and r.destination = n47)) into RouteRoad
+!insert (route2, Road.allInstances->any(r | r.origin = n47 and r.destination = n48)) into RouteRoad
+!insert (route2, Road.allInstances->any(r | r.origin = n48 and r.destination = n49)) into RouteRoad
+!insert (route2, Road.allInstances->any(r | r.origin = n49 and r.destination = disposal)) into RouteRoad
 
 !create route3 : Route
 !set route3.totalTravelTime := 60.0   -- 9x4.0 + 4x6.0 = 60 min
@@ -539,44 +506,27 @@
 -- Assign route3 to truck3
 !insert (route3, truck3) into AssignedTo
 
--- Route3 ordered stop sequence with explicit step indices (0-indexed)
-!insert (route3, depot) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route3 and rs.stops = depot).step := 0
-!insert (route3, n2) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route3 and rs.stops = n2).step := 1
-!insert (route3, n12) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route3 and rs.stops = n12).step := 2
-!insert (route3, n13) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route3 and rs.stops = n13).step := 3
-!insert (route3, n23) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route3 and rs.stops = n23).step := 4
-!insert (route3, n24) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route3 and rs.stops = n24).step := 5
-!insert (route3, n34) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route3 and rs.stops = n34).step := 6
-!insert (route3, n35) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route3 and rs.stops = n35).step := 7
-!insert (route3, n45) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route3 and rs.stops = n45).step := 8
-!insert (route3, n46) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route3 and rs.stops = n46).step := 9
-!insert (route3, n47) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route3 and rs.stops = n47).step := 10
-!insert (route3, n48) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route3 and rs.stops = n48).step := 11
-!insert (route3, n49) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route3 and rs.stops = n49).step := 12
-!insert (route3, disposal) into RouteStop
-!set RouteStop.allInstances->any(rs | rs.routes = route3 and rs.stops = disposal).step := 13
+-- Route3: select the edges it uses (RouteRoad is the decision variable)
+!insert (route3, Road.allInstances->any(r | r.origin = depot and r.destination = n2)) into RouteRoad
+!insert (route3, Road.allInstances->any(r | r.origin = n2 and r.destination = n12)) into RouteRoad
+!insert (route3, Road.allInstances->any(r | r.origin = n12 and r.destination = n13)) into RouteRoad
+!insert (route3, Road.allInstances->any(r | r.origin = n13 and r.destination = n23)) into RouteRoad
+!insert (route3, Road.allInstances->any(r | r.origin = n23 and r.destination = n24)) into RouteRoad
+!insert (route3, Road.allInstances->any(r | r.origin = n24 and r.destination = n34)) into RouteRoad
+!insert (route3, Road.allInstances->any(r | r.origin = n34 and r.destination = n35)) into RouteRoad
+!insert (route3, Road.allInstances->any(r | r.origin = n35 and r.destination = n45)) into RouteRoad
+!insert (route3, Road.allInstances->any(r | r.origin = n45 and r.destination = n46)) into RouteRoad
+!insert (route3, Road.allInstances->any(r | r.origin = n46 and r.destination = n47)) into RouteRoad
+!insert (route3, Road.allInstances->any(r | r.origin = n47 and r.destination = n48)) into RouteRoad
+!insert (route3, Road.allInstances->any(r | r.origin = n48 and r.destination = n49)) into RouteRoad
+!insert (route3, Road.allInstances->any(r | r.origin = n49 and r.destination = disposal)) into RouteRoad
 
 -- -----------------------------------------------------------
 -- 6. Simulate garbage collection along each route
 -- -----------------------------------------------------------
 -- Truck1 collects its assigned bins
-!openter truck1 collectGarbage(bin1)
-!set truck1.currentLoad := truck1.currentLoad + bin1.currentFill
-!set bin1.currentFill   := 0.0
-!opexit
+-- bin1 is already empty (currentFill = 0); collectGarbage's
+-- binNeedsCollection precondition requires currentFill > 0, so skip it.
 !openter truck1 collectGarbage(bin2)
 !set truck1.currentLoad := truck1.currentLoad + bin2.currentFill
 !set bin2.currentFill   := 0.0
@@ -601,8 +551,6 @@
 !set truck1.currentLoad := truck1.currentLoad + bin7.currentFill
 !set bin7.currentFill   := 0.0
 !opexit
--- Update truck1 distance (9x4.0 + 4x6.0 = 60 min, set manually here)
-!set truck1.distanceTravelled := 60.0
 
 -- Truck2 collects its assigned bins
 !openter truck2 collectGarbage(bin8)
@@ -633,8 +581,6 @@
 !set truck2.currentLoad := truck2.currentLoad + bin14.currentFill
 !set bin14.currentFill   := 0.0
 !opexit
--- Update truck2 distance (9x4.0 + 4x6.0 = 60 min, set manually here)
-!set truck2.distanceTravelled := 60.0
 
 -- Truck3 collects its assigned bins
 !openter truck3 collectGarbage(bin15)
@@ -661,8 +607,6 @@
 !set truck3.currentLoad := truck3.currentLoad + bin20.currentFill
 !set bin20.currentFill   := 0.0
 !opexit
--- Update truck3 distance (9x4.0 + 4x6.0 = 60 min, set manually here)
-!set truck3.distanceTravelled := 60.0
 
 -- -----------------------------------------------------------
 -- 7. Check all constraints
@@ -670,9 +614,9 @@
 check
 
 -- Expected: all invariants true.
--- truck1.currentLoad = 10.5 m3  (<= maxCapacity 15.0)
--- truck2.currentLoad = 9.9 m3  (<= maxCapacity 15.0)
--- truck3.currentLoad = 9.2 m3  (<= maxCapacity 15.0)
--- Each truck.distanceTravelled = 60.0 km  (<= fuelRange 100.0)
--- All 20 bins have currentFill = 0 (collected)
--- All 3 trucks active, each with its own route
+-- truck1.currentLoad = 3.48 m3  (<= maxCapacity 15.0)
+-- truck2.currentLoad = 3.41 m3  (<= maxCapacity 15.0)
+-- truck3.currentLoad = 3.02 m3  (<= maxCapacity 15.0)
+-- Each route: edgeCost() = 60.0 min; fuelPenalty() = max(0, 60-100)^2 = 0
+-- All 20 bins have currentFill = 0 (collected, except the one already empty)
+-- All 3 trucks assigned a route
