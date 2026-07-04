@@ -28,7 +28,9 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
 import javax.swing.JTextField;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
@@ -36,6 +38,7 @@ import org.tzi.use.gui.views.View;
 import org.tzi.use.parser.ocl.OCLCompiler;
 import org.tzi.use.plugin.use2qubo.qubo.QuboConfig;
 import org.tzi.use.plugin.use2qubo.util.PluginLog;
+import org.tzi.use.plugin.use2qubo.util.QuboConstants;
 import org.tzi.use.plugin.use2qubo.util.SimpleJsonWriter;
 import org.tzi.use.uml.mm.MAssociation;
 import org.tzi.use.uml.mm.MModel;
@@ -46,6 +49,8 @@ public class QuboConfigView extends JPanel implements View {
 
     private final JTextField objectiveField = new JTextField(50);
     private final JCheckBox minimiseBox = new JCheckBox("Minimise", true);
+    private final JSpinner maxDegreeSpinner =
+            new JSpinner(new SpinnerNumberModel(QuboConstants.DEFAULT_MAX_POLY_DEGREE, 2, 6, 1));
     private final Map<String, JCheckBox> assocCheckboxes = new LinkedHashMap<>();
     private final MModel model;
 
@@ -111,14 +116,25 @@ public class QuboConfigView extends JPanel implements View {
         panel.add(validateStatus, sc);
         row++;
 
-        // Row 2: minimise checkbox
+        // Row 2: minimise checkbox + max-degree spinner
         minimiseBox.setToolTipText(
                 "Checked: minimise objective (cost minimisation). "
                 + "Unchecked: maximise objective (negated before QUBO encoding).");
+        maxDegreeSpinner.setToolTipText(
+                "Cap on pseudo-Boolean polynomial degree explored when degree-2 AutoQUBO sampling is not exact. "
+                + "Terms above degree 2 are reduced to a QUBO via Rosenberg quadratization (ancillary variables). "
+                + "Higher values sample O(n^k) points and may add many ancilla variables.");
+        maxDegreeSpinner.setPreferredSize(new java.awt.Dimension(60, maxDegreeSpinner.getPreferredSize().height));
+
+        JPanel minimiseRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        minimiseRow.add(minimiseBox);
+        minimiseRow.add(new JLabel("Max poly. degree:"));
+        minimiseRow.add(maxDegreeSpinner);
+
         lc.gridy = row; fc.gridy = row;
         lc.gridx = 0;  fc.gridx = 1;
         panel.add(new JLabel("Minimise:"), lc);
-        panel.add(minimiseBox, fc);
+        panel.add(minimiseRow, fc);
         row++;
 
         // Row 3: association checkbox list
@@ -206,6 +222,7 @@ public class QuboConfigView extends JPanel implements View {
             QuboConfig cfg = QuboConfig.parse(raw);
             objectiveField.setText(cfg.objectiveExpr != null ? cfg.objectiveExpr : "");
             minimiseBox.setSelected(cfg.minimise);
+            maxDegreeSpinner.setValue(cfg.maxDegree);
             for (String assocName : cfg.decisionVarAssocs) {
                 JCheckBox cb = assocCheckboxes.get(assocName);
                 if (cb != null) cb.setSelected(true);
@@ -222,6 +239,7 @@ public class QuboConfigView extends JPanel implements View {
         }
         String expr = objectiveField.getText().trim();
         boolean minimise = minimiseBox.isSelected();
+        int maxDegree = (Integer) maxDegreeSpinner.getValue();
 
         SimpleJsonWriter w = new SimpleJsonWriter();
         w.objectOpen();
@@ -229,7 +247,8 @@ public class QuboConfigView extends JPanel implements View {
         w.key("decision_vars").arrayOpen().arrayClose(true);
         w.key("objective").objectOpen();
         w.keyValue("expression", expr, true);
-        w.keyValue("minimise", minimise, false);
+        w.keyValue("minimise", minimise, true);
+        w.keyValue("max_degree", maxDegree, false);
         w.objectClose(true);
         w.keyValue("objective_weight", 1, false);
         w.objectClose(false);

@@ -14,10 +14,13 @@ public class QuboResultExporter {
     public static void write(QuboResult result, File outputFile) throws IOException {
         SimpleJsonWriter w = new SimpleJsonWriter();
         w.objectOpen();
-        w.keyValue("nVars",    result.nVars,    true);
-        w.keyValue("nSamples", result.nSamples, true);
-        w.keyValue("exact",    result.exact,    true);
-        w.keyValue("constant", result.constant, true);
+        w.keyValue("nVars",       result.nVars,       true);
+        w.keyValue("nSamples",    result.nSamples,    true);
+        w.keyValue("exact",       result.exact,       true);
+        w.keyValue("constant",    result.constant,    true);
+        w.keyValue("polyDegree",  result.polyDegree,  true);
+        w.keyValue("nAncillaVars", result.nAncillaVars, true);
+        w.keyValue("quadratizationPenalty", result.quadratizationPenalty, true);
 
         w.key("linear").objectOpen();
         writeIntDoubleMap(w, result.linear);

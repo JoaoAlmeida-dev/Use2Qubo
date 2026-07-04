@@ -34,7 +34,7 @@ The [examples/](examples/) directory contains ready-to-load `.use` models with m
 
 | Example | Description |
 |---------|-------------|
-| [examples/GarageTrucks/](examples/GarageTrucks/GarbageTruckRouting.use) | Garbage truck routing model; decision variables encode route/stop assignments, objective minimises total travel time. See [export_config_schema.md](examples/GarageTrucks/export_config_schema.md) for a full field-by-field reference of `qubo_config.json`. |
+| [examples/GarageTrucks/](examples/GarageTrucks/GarbageTruckRouting.use) | Garbage truck routing model; decision variables encode route/stop assignments, objective minimises total travel time. See [qubo_config_schema.md](examples/GarageTrucks/qubo_config_schema.md) for a full field-by-field reference of `qubo_config.json`. |
 | [examples/autoquboMaxClique/](examples/autoquboMaxClique/MaxClique.use) | Max-clique model demonstrating AutoQUBO sampling on a classic combinatorial benchmark. |
 
 Each example folder also ships a `.cmd` file with USE console commands to load the model and populate an initial object diagram, useful for a quick smoke test after installing the plugin.
@@ -105,6 +105,36 @@ src/main/java/org/tzi/use/plugin/use2qubo/
     └── SimpleJsonWriter.java        — minimal JSON serialiser (no external deps)
 ```
 
+## CLI
+
+`QuboCli` runs the same derive pipeline headlessly, no USE GUI required — useful for CI, scripting, or batch-deriving multiple examples.
+
+```bash
+java -cp "target/use2qubo-1.0.0.jar;lib/*" org.tzi.use.plugin.use2qubo.cli.QuboCli \
+  --model examples/GarageTrucks/GarbageTruckRouting.use \
+  --cmd   examples/GarageTrucks/GarbageTruckRouting.cmd \
+  [--config qubo_config.json] \
+  [--out qubo.json]
+```
+
+(On Linux/macOS, use `:` instead of `;` in `-cp`.)
+
+- `--model` (required) — path to the `.use` model file.
+- `--cmd` (required) — `.cmd` script of `!`-prefixed SOIL statements, executed against a fresh `MSystem` built from the model, to populate the object diagram before deriving.
+- `--config` (optional) — path to `qubo_config.json`. Defaults to `qubo_config.json` next to the model file.
+- `--out` (optional) — path to write the derived `qubo.json`. Defaults to `qubo.json` next to the model file.
+
+Prints a one-line summary to stdout: `nVars=<n> exact=PASS|FAIL derivationMs=<ms> out=<path>`. Progress and warnings go to stderr.
+
+**Exit codes:**
+
+| Code | Meaning |
+|------|---------|
+| `0` | QUBO derived, exactness check passed |
+| `1` | Unexpected error (bad model/cmd file, IO failure, etc.) |
+| `2` | Usage error (missing/unknown argument) — prints usage to stderr |
+| `3` | QUBO derived but exactness check failed — inspect `qubo.json`'s `exact`/`polyDegree`/`nAncillaVars` fields and see [Exactness check](#exactness-check) below |
+
 ## Exactness check
 
 `QuboEngine.derive()` fits the QUBO polynomial q(x) from a limited set of sample points (AutoQUBO's data-driven sampling, `2 + n*(n+1)` evaluations). Fitting is exact by construction on those training points, but the true objective+penalty function f(x) is only degree-2 representable if:
@@ -138,7 +168,7 @@ If either assumption is violated, q(x) matches f(x) on the training points but d
 | [JAVA-008](tickets/JAVA-008-dialog-to-internal-windows.md) | Convert popup dialogs to dockable internal windows | Done |
 | [JAVA-009](tickets/JAVA-009-ui-understandability-improvements.md) | UI understandability & visualisation improvements | Done |
 | [JAVA-010](tickets/JAVA-010-qubo-expression-visualisation.md) | QUBO expression graph visualiser (`QuboGraphPanel`) | Done |
-| [JAVA-013](tickets/JAVA-013-headless-cli.md) | Headless CLI: derive QUBO without USE GUI | Open |
+| [JAVA-013](tickets/JAVA-013-headless-cli.md) | Headless CLI: derive QUBO without USE GUI | Done |
 
 ## Prerequisites
 

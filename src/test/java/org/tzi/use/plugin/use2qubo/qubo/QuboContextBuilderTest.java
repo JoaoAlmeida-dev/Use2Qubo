@@ -36,7 +36,8 @@ class QuboContextBuilderTest {
 
         QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.garageTrucksConfig().toPath());
 
+        // RouteRoad(Route,Road)=7, AssignedTo(Route,Truck)=2
         assertEquals(2, ctx.decisionVars.size());
-        assertEquals(8, ctx.nVars);
+        assertEquals(9, ctx.nVars);
     }
 }

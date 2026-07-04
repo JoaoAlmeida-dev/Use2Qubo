@@ -28,6 +28,14 @@ public final class QuboConstants {
     /** Retry budget scales with n^2 so small models still get a fair search; multiplier per n^2. */
     public static final int EXACTNESS_ATTEMPTS_PER_N_SQUARED = 20;
 
+    /** Default cap on pseudo-Boolean polynomial degree explored when degree-2 sampling is not exact
+     *  (AutoQUBO §4.3 escalation); overridable per-model via {@code max_degree} in qubo_config.json. */
+    public static final int DEFAULT_MAX_POLY_DEGREE = 3;
+
+    /** Rosenberg quadratization penalty margin added on top of the per-pair coefficient bound,
+     *  so the ancilla-consistency penalty strictly dominates (Rosenberg 1975; Dattani 2019 survey). */
+    public static final double QUADRATIZATION_PENALTY_MARGIN = 1.0;
+
     // --- QuboGraphPanel: node/edge sizing ---
 
     /** Extra edge-width multiplier applied on top of the base width, scaled by |coefficient| / maxQuad. */

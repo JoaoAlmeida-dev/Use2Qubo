@@ -39,12 +39,18 @@ public class SamplingTabPanel extends JSplitPane {
 
     private static JPanel buildPassPanel(String title, List<SampleRecord> samples,
             QuboResult result, MatrixTabPanel matrixTabPanel, Runnable switchToMatrixTab) {
-        int n = result.nVars;
+        // Sample vectors are always over the original decision variables (never ancillas, which
+        // only exist post-quadratization) — do not use result.nVars here once ancillas are present.
+        int n = samples.isEmpty() ? result.nVars : samples.get(0).vector.length;
 
         int constCount = 0, linearCount = 0, quadCount = 0;
+        // Count of probes per degree ≥ 3, keyed by degree (3, 4, ...).
+        java.util.Map<Integer, Integer> higherOrderCounts = new java.util.TreeMap<>();
         for (SampleRecord sr : samples) {
             if (sr.derivedI == -1) constCount++;
-            else if (sr.derivedI == sr.derivedJ) linearCount++;
+            else if (sr.derivedI == -2) {
+                higherOrderCounts.merge(sr.termVars.length, 1, Integer::sum);
+            } else if (sr.derivedI == sr.derivedJ) linearCount++;
             else quadCount++;
         }
         int expectedLinear = n;
@@ -59,11 +65,19 @@ public class SamplingTabPanel extends JSplitPane {
         summary.add(ViewFormatUtil.statLabel("const: " + constCount + "/1"));
         summary.add(countLabel("linear", linearCount, expectedLinear));
         summary.add(countLabel("quadratic", quadCount, expectedQuad));
+        for (java.util.Map.Entry<Integer, Integer> e : higherOrderCounts.entrySet()) {
+            int degree = e.getKey();
+            int expected = binomial(n, degree);
+            summary.add(countLabel("degree-" + degree, e.getValue(), expected));
+        }
 
         JPanel legend = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 2));
         legend.add(ViewFormatUtil.makeSwatch(ViewFormatUtil.termTypeColor(-1, -1), "constant"));
         legend.add(ViewFormatUtil.makeSwatch(ViewFormatUtil.termTypeColor(0, 0), "linear"));
         legend.add(ViewFormatUtil.makeSwatch(ViewFormatUtil.termTypeColor(0, 1), "quadratic"));
+        if (!higherOrderCounts.isEmpty()) {
+            legend.add(ViewFormatUtil.makeSwatch(ViewFormatUtil.termTypeColor(-2, -2), "degree-3+"));
+        }
 
         JPanel header = new JPanel();
         header.setLayout(new javax.swing.BoxLayout(header, javax.swing.BoxLayout.Y_AXIS));
@@ -84,9 +98,19 @@ public class SamplingTabPanel extends JSplitPane {
         return l;
     }
 
+    /** n choose k, for the "expected probe count" summary at escalated degrees. */
+    private static int binomial(int n, int k) {
+        if (k < 0 || k > n) return 0;
+        long result = 1;
+        for (int i = 0; i < k; i++) {
+            result = result * (n - i) / (i + 1);
+        }
+        return (int) result;
+    }
+
     private static JTable buildTable(List<SampleRecord> samples, QuboResult result,
             MatrixTabPanel matrixTabPanel, Runnable switchToMatrixTab) {
-        int n = result.nVars;
+        int n = samples.isEmpty() ? result.nVars : samples.get(0).vector.length;
 
         // Column headers: #, Phase, x0…xn-1, Value, Derived
         int colCount = 3 + n + 1;
@@ -108,7 +132,7 @@ public class SamplingTabPanel extends JSplitPane {
             row[1] = sr.phase;
             for (int i = 0; i < n; i++) row[2 + i] = sr.vector[i];
             row[2 + n] = String.format("%.4f", sr.rawValue);
-            row[3 + n] = derivedLabel(sr.derivedI, sr.derivedJ);
+            row[3 + n] = derivedLabel(sr);
             model.addRow(row);
         }
 
@@ -176,7 +200,8 @@ public class SamplingTabPanel extends JSplitPane {
                 if (row < 0) return;
                 int modelRow = table.convertRowIndexToModel(row);
                 SampleRecord sr = samples.get(modelRow);
-                if (sr.derivedI == -1) return; // constant probe: no matrix cell to highlight
+                // constant probe or degree-3+ probe: no single matrix cell to highlight
+                if (sr.derivedI == -1 || sr.derivedI == -2) return;
                 switchToMatrixTab.run();
                 matrixTabPanel.highlightCell(sr.derivedI, sr.derivedJ);
             }
@@ -188,6 +213,15 @@ public class SamplingTabPanel extends JSplitPane {
     private static String termTypePrefix(SampleRecord sr, QuboResult result) {
         List<String> labels = result.varLabels;
         if (sr.derivedI == -1) return "Constant probe<br>";
+        if (sr.derivedI == -2) {
+            StringBuilder sb = new StringBuilder("Degree-").append(sr.termVars.length).append(" probe for ");
+            for (int k = 0; k < sr.termVars.length; k++) {
+                if (k > 0) sb.append(" × ");
+                int v = sr.termVars[k];
+                sb.append(v < labels.size() ? labels.get(v) : "x" + v);
+            }
+            return sb.append("<br>").toString();
+        }
         if (sr.derivedI == sr.derivedJ) {
             String label = sr.derivedI < labels.size() ? labels.get(sr.derivedI) : "x" + sr.derivedI;
             return "Linear probe for " + label + "<br>";
@@ -197,9 +231,17 @@ public class SamplingTabPanel extends JSplitPane {
         return "Quadratic probe for " + li + " × " + lj + "<br>";
     }
 
-    private static String derivedLabel(int i, int j) {
-        if (i == -1) return "c";
-        if (i == j)  return "Q[" + i + "," + i + "]";
-        return "Q[" + i + "," + j + "]";
+    private static String derivedLabel(SampleRecord sr) {
+        if (sr.derivedI == -1) return "c";
+        if (sr.derivedI == -2) {
+            StringBuilder sb = new StringBuilder("Q[");
+            for (int k = 0; k < sr.termVars.length; k++) {
+                if (k > 0) sb.append(",");
+                sb.append(sr.termVars[k]);
+            }
+            return sb.append("]").toString();
+        }
+        if (sr.derivedI == sr.derivedJ) return "Q[" + sr.derivedI + "," + sr.derivedI + "]";
+        return "Q[" + sr.derivedI + "," + sr.derivedJ + "]";
     }
 }

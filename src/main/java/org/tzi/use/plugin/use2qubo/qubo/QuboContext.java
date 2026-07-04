@@ -38,6 +38,9 @@ public class QuboContext {
 
     public final boolean minimise;
 
+    /** Cap on pseudo-Boolean polynomial degree explored before quadratization (from {@code max_degree}). */
+    public final int maxDegree;
+
     QuboContext(MSystem system,
                 MModel model,
                 MSystemState state,
@@ -47,7 +50,8 @@ public class QuboContext {
                 List<DecisionVar> decisionVars,
                 int nVars,
                 String objectiveExpr,
-                boolean minimise) {
+                boolean minimise,
+                int maxDegree) {
         this.system          = system;
         this.model           = model;
         this.state           = state;
@@ -58,6 +62,7 @@ public class QuboContext {
         this.nVars           = nVars;
         this.objectiveExpr   = objectiveExpr;
         this.minimise        = minimise;
+        this.maxDegree       = maxDegree;
     }
 
     /**

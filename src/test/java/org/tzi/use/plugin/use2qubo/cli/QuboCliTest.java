@@ -84,16 +84,20 @@ class QuboCliTest {
                 "--out", out.getPath()
         });
 
+        // cliqueProperty is a boolean pass/fail over many decision variables at once,
+        // needing a degree far beyond the default max_degree=3 cap to be exact; QuboEngine
+        // still quadratizes the best degree-3 approximation found (10 original + ancillas)
+        // rather than falling back to a degree-2 slice.
         assertEquals(3, exitCode);
         assertTrue(out.isFile());
         String json = Files.readString(out.toPath());
-        assertTrue(json.contains("\"nVars\": 10"), json);
         assertTrue(json.contains("\"exact\": false"), json);
+        assertTrue(json.contains("\"polyDegree\": 3"), json);
         assertTrue(json.contains("Contains(sol,v1)"), json);
     }
 
     @Test
-    void garageTrucksRunReturnsExactExitCode(@TempDir Path tempDir) throws Exception {
+    void garageTrucksRunReturnsInexactExitCode(@TempDir Path tempDir) throws Exception {
         File out = tempDir.resolve("garage-qubo.json").toFile();
 
         int exitCode = QuboCli.run(new String[] {
@@ -102,11 +106,16 @@ class QuboCliTest {
                 "--out", out.getPath()
         });
 
-        assertEquals(0, exitCode);
+        // RouteRoad(Route,Road) + AssignedTo(Route,Truck) = 9 decision variables.
+        // fuelPenalty() is a hinge max(0, edgeCost()-fuelRange)^2 -- a non-polynomial
+        // threshold function, so it stays non-exact at any degree; quadratization only
+        // reduces the degree of already-polynomial terms (coveragePenalty/shapePenalty),
+        // it cannot make a branching function exact. Same disclosed trade-off as
+        // coveragePenalty()/shapePenalty(); see GarbageTruckRouting.use fuelPenalty() comment.
+        assertEquals(3, exitCode);
         assertTrue(out.isFile());
         String json = Files.readString(out.toPath());
-        assertTrue(json.contains("\"nVars\": 8"), json);
-        assertTrue(json.contains("\"exact\": true"), json);
+        assertTrue(json.contains("\"exact\": false"), json);
     }
 
     // -----------------------------------------------------------------

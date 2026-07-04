@@ -23,6 +23,7 @@ public final class ViewFormatUtil {
     private static final Color TERM_CONSTANT  = new Color(200, 200, 200);
     private static final Color TERM_LINEAR    = new Color(100, 149, 237);
     private static final Color TERM_QUADRATIC = new Color(218, 165, 32);
+    private static final Color TERM_HIGHER_ORDER = new Color(178, 34, 34);
 
     private ViewFormatUtil() {}
 
@@ -76,9 +77,11 @@ public final class ViewFormatUtil {
         return blend(Color.WHITE, target, alpha);
     }
 
-    /** Colour for a sampling-tab term type, derived from a {@code SampleRecord}'s derivedI/derivedJ. */
+    /** Colour for a sampling-tab term type, derived from a {@code SampleRecord}'s derivedI/derivedJ.
+     *  -1 = constant, -2 = degree-3+ (no single matrix cell), i==j = linear, else quadratic. */
     public static Color termTypeColor(int derivedI, int derivedJ) {
         if (derivedI == -1) return TERM_CONSTANT;
+        if (derivedI == -2) return TERM_HIGHER_ORDER;
         if (derivedI == derivedJ) return TERM_LINEAR;
         return TERM_QUADRATIC;
     }

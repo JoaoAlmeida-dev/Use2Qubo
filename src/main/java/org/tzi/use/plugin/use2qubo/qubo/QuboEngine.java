@@ -40,16 +40,20 @@ import java.util.function.Consumer;
  * <p>Two-pass sampling: cost and penalty evaluated separately so B can be
  * derived from cost coefficients alone (per-row max; tighter than the global
  * sum bound, giving a better annealing landscape).
- * Total evaluations: 2 + n*(n+1) (2× v1; acceptable).
  *
- * <p><b>Boolean penalty limitation:</b> OCL invariants are evaluated as boolean
- * pass/fail and each failure contributes +1 to the penalty. This is a step-function
- * over binary vectors — not degree-2 representable if any invariant body involves a
- * sum of many decision variables (e.g. {@code self.bins->size() = k}).
- * The exactness check detects this. To guarantee exactness, either ensure each
- * invariant instance references at most two decision variables, or reformulate
- * as an integer-valued violation count (e.g. {@code (self.bins->size() - k).abs()})
- * evaluated via a custom objective expression rather than a class invariant.
+ * <p><b>Higher-order terms.</b> Sampling starts at degree 2 (the historical
+ * behaviour). If the combined cost+penalty polynomial fails the exactness
+ * check at degree 2 — which happens whenever an OCL invariant or objective
+ * term touches 3+ decision variables in one expression (e.g. a boolean
+ * pass/fail invariant over a sum of many decision variables, or an
+ * {@code exists}/{@code or} across several) — sampling escalates to degree 3,
+ * degree 4, etc. (AutoQUBO §4.3, Algorithm 1), up to {@link QuboContext#maxDegree}.
+ * Once an exact higher-degree polynomial is found, it is reduced to a QUBO by
+ * Rosenberg pair-substitution quadratization ({@link Quadratizer}; Rosenberg
+ * 1975, surveyed in Dattani 2019, arXiv:1901.04405), introducing ancillary
+ * binary variables appended after the original decision variables. If no
+ * degree up to the cap is exact, the best-effort degree-2 approximation is
+ * exported with {@code exact=false}, as before.
  */
 public class QuboEngine {
 
@@ -64,8 +68,7 @@ public class QuboEngine {
      */
     public static QuboResult derive(QuboContext ctx, Consumer<String> progress) throws Exception {
         int n = ctx.nVars;
-        int nSamples = 2 + n * (n + 1);  // two passes of (1 + n*(n+1)/2)
-        PluginLog.info("QuboEngine.derive: nVars=" + n + ", nSamples=" + nSamples);
+        PluginLog.info("QuboEngine.derive: nVars=" + n + ", maxDegree=" + ctx.maxDegree);
 
         report(progress, "Building variable index…");
         List<DVPair> flatVars = buildFlatVars(ctx);
@@ -79,7 +82,7 @@ public class QuboEngine {
 
         Map<String, Set<MLink>> savedLinks = saveAndStripLinks(ctx);
         try {
-            QuboResult result = deriveWithClearedState(ctx, n, nSamples, flatVars, varLabels,
+            QuboResult result = deriveWithClearedState(ctx, n, flatVars, varLabels,
                     objExpr, evaluator, progress, savedLinks);
             PluginLog.info("Derive complete: " + result);
             return result;
@@ -88,24 +91,67 @@ public class QuboEngine {
         }
     }
 
-    /** Runs the sampling, combination and exactness-check steps, assuming decision-var links are already stripped. */
-    private static QuboResult deriveWithClearedState(QuboContext ctx, int n, int nSamples,
+    /** Runs the sampling (with degree escalation), quadratization and exactness-check steps,
+     *  assuming decision-var links are already stripped. */
+    private static QuboResult deriveWithClearedState(QuboContext ctx, int n,
             List<DVPair> flatVars, List<String> varLabels, Expression objExpr, Evaluator evaluator,
             Consumer<String> progress, Map<String, Set<MLink>> savedLinks) throws Exception {
-        SamplingPass cost = sampleCostTerms(n, flatVars, ctx, evaluator, objExpr, progress);
-        double B = computePenaltyWeight(n, cost.lin, cost.quad);
-        SamplingPass penalty = samplePenaltyTerms(n, flatVars, ctx, evaluator, progress);
-        CombinedCoefficients combined = combine(n, cost, penalty, B);
+
+        int maxDegree = Math.max(2, ctx.maxDegree);
+
+        report(progress, "Sampling: cost degree ≤2…");
+        PolySampler.Result cost = PolySampler.sample(n, 0, 2, Collections.emptyMap(), "cost",
+                x -> evalCost(x, flatVars, ctx, evaluator, objExpr), progress);
+        double[] costLin = new double[n];
+        double[][] costQuad = new double[n][n];
+        flattenDegree2(cost.coeffs, n, costLin, costQuad);
+        double B = computePenaltyWeight(n, costLin, costQuad);
+
+        report(progress, "Sampling: penalty degree ≤2…");
+        PolySampler.Result penalty = PolySampler.sample(n, 0, 2, Collections.emptyMap(), "pen",
+                x -> evalPenalty(x, flatVars, ctx, evaluator), progress);
+
+        Map<VarSet, Double> combined = combine(cost.coeffs, penalty.coeffs, B);
+        int degree = 2;
 
         restoreLinks(ctx, savedLinks);
+        report(progress, "Running exactness check (degree " + degree + ")…");
+        List<ExactnessPoint> exactnessPoints = checkExactness(n, combined, flatVars, ctx, evaluator, objExpr, B, savedLinks);
+        boolean degreeExact = logExactnessOutcome(exactnessPoints, degree);
 
-        report(progress, "Running exactness check…");
-        List<ExactnessPoint> exactnessPoints = checkExactness(n, combined.c, combined.lin,
-                combined.quad, flatVars, ctx, evaluator, objExpr, B, savedLinks);
-        boolean exact = logExactnessOutcome(exactnessPoints);
+        while (!degreeExact && degree < maxDegree) {
+            int nextDegree = degree + 1;
+            report(progress, "Exactness failed at degree " + degree + "; escalating to degree " + nextDegree + "…");
+            PluginLog.info("QuboEngine: escalating sampling to degree " + nextDegree);
 
+            // checkExactness restores the original scenario links in its own finally block;
+            // strip them again before sampling, same as the initial degree-2 pass does.
+            stripDecisionLinks(ctx);
+
+            PolySampler.Result costNext = PolySampler.sample(n, nextDegree, nextDegree, cost.coeffs, "cost",
+                    x -> evalCost(x, flatVars, ctx, evaluator, objExpr), progress);
+            List<SampleRecord> costSamples = new ArrayList<>(cost.samples);
+            costSamples.addAll(costNext.samples);
+            cost = new PolySampler.Result(costNext.coeffs, costSamples);
+
+            PolySampler.Result penaltyNext = PolySampler.sample(n, nextDegree, nextDegree, penalty.coeffs, "pen",
+                    x -> evalPenalty(x, flatVars, ctx, evaluator), progress);
+            List<SampleRecord> penaltySamples = new ArrayList<>(penalty.samples);
+            penaltySamples.addAll(penaltyNext.samples);
+            penalty = new PolySampler.Result(penaltyNext.coeffs, penaltySamples);
+
+            combined = combine(cost.coeffs, penalty.coeffs, B);
+            degree = nextDegree;
+
+            restoreLinks(ctx, savedLinks);
+            report(progress, "Running exactness check (degree " + degree + ")…");
+            exactnessPoints = checkExactness(n, combined, flatVars, ctx, evaluator, objExpr, B, savedLinks);
+            degreeExact = logExactnessOutcome(exactnessPoints, degree);
+        }
+
+        int nSamples = cost.samples.size() + penalty.samples.size();
         return buildResult(n, nSamples, combined, varLabels, B,
-                cost.samples, penalty.samples, exactnessPoints, exact);
+                cost.samples, penalty.samples, exactnessPoints, degreeExact, degree);
     }
 
     private static List<String> buildVarLabels(List<DVPair> flatVars) {
@@ -142,19 +188,19 @@ public class QuboEngine {
         return savedLinks;
     }
 
-    private static boolean logExactnessOutcome(List<ExactnessPoint> exactnessPoints) {
+    private static boolean logExactnessOutcome(List<ExactnessPoint> exactnessPoints, int degree) {
         boolean exact = exactnessPoints.stream()
                 .noneMatch(p -> p.evalFailed || p.error() >= EPS);
         if (!exact) {
-            PluginLog.warn("QuboEngine: exactness check FAILED — q(x) ≠ f(x) on held-out points. "
-                + "The combined objective+penalty is not representable as a degree-2 polynomial. "
+            PluginLog.warn("QuboEngine: exactness check FAILED at degree " + degree
+                + " — q(x) ≠ f(x) on held-out points. "
                 + "Common causes: "
                 + "(1) An OCL invariant uses a boolean pass/fail condition — "
                 + "reformulate by counting violations (integer sum) instead of returning true/false. "
-                + "(2) The objective OCL expression contains interactions between 3+ decision variables "
-                + "(e.g. a product of three link memberships) — decompose into pairwise terms.");
+                + "(2) The objective/penalty involves interactions between more decision variables "
+                + "than the current degree cap allows — raise max_degree.");
         } else {
-            PluginLog.info("Exactness check: PASS");
+            PluginLog.info("Exactness check: PASS at degree " + degree);
         }
         return exact;
     }
@@ -163,118 +209,22 @@ public class QuboEngine {
         if (cb != null) cb.accept(msg);
     }
 
-    private static void checkCancelled() throws InterruptedException {
-        if (Thread.interrupted()) throw new InterruptedException("Derivation cancelled");
-    }
-
     // -------------------------------------------------------------------------
-    // Sampling passes
+    // Degree-2 flattening / penalty weight / combination
     // -------------------------------------------------------------------------
 
-    /** Result of one sampling pass (cost-only or penalty-only): constant, linear and quadratic terms, plus the raw samples taken. */
-    private static final class SamplingPass {
-        final double c;
-        final double[] lin;
-        final double[][] quad;
-        final List<SampleRecord> samples;
-
-        SamplingPass(double c, double[] lin, double[][] quad, List<SampleRecord> samples) {
-            this.c = c;
-            this.lin = lin;
-            this.quad = quad;
-            this.samples = samples;
-        }
-    }
-
-    /** Result of merging cost and penalty passes into the final QUBO polynomial coefficients. */
-    private static final class CombinedCoefficients {
-        final double c;
-        final double[] lin;
-        final double[][] quad;
-
-        CombinedCoefficients(double c, double[] lin, double[][] quad) {
-            this.c = c;
-            this.lin = lin;
-            this.quad = quad;
-        }
-    }
-
-    private static SamplingPass sampleCostTerms(int n, List<DVPair> flatVars, QuboContext ctx,
-                                                 Evaluator evaluator, Expression objExpr,
-                                                 Consumer<String> progress) throws Exception {
-        double[] lin = new double[n];
-        double[][] quad = new double[n][n];
-        int[] zeros = new int[n];
-        List<SampleRecord> samples = new ArrayList<>(1 + n + n * (n - 1) / 2);
-
-        report(progress, "Sampling: cost constant term");
-        double c = evalCost(zeros, flatVars, ctx, evaluator, objExpr);
-        samples.add(new SampleRecord(zeros, "cost_const", c, -1, -1));
-
-        for (int i = 0; i < n; i++) {
-            checkCancelled();
-            report(progress, "Sampling: cost linear (" + (i + 1) + "/" + n + ")…");
-            int[] ei = new int[n];
-            ei[i] = 1;
-            double rawLin = evalCost(ei, flatVars, ctx, evaluator, objExpr);
-            samples.add(new SampleRecord(ei, "cost_lin_i=" + i, rawLin, i, i));
-            lin[i] = rawLin - c;
-        }
-
-        int totalPairs = n * (n - 1) / 2;
-        for (int i = 0, pairCount = 0; i < n; i++) {
-            for (int j = i + 1; j < n; j++) {
-                checkCancelled();
-                pairCount++;
-                report(progress, "Sampling: cost quadratic (" + pairCount + "/" + totalPairs + ")…");
-                int[] eij = new int[n];
-                eij[i] = 1;
-                eij[j] = 1;
-                double rawQuad = evalCost(eij, flatVars, ctx, evaluator, objExpr);
-                samples.add(new SampleRecord(eij, "cost_quad_i=" + i + "_j=" + j, rawQuad, i, j));
-                quad[i][j] = rawQuad - lin[i] - lin[j] - c;
+    /** Extracts the degree-1 and degree-2 coefficients of {@code coeffs} into flat arrays
+     *  (used only for the Verma-Lewis penalty-weight computation, which is degree-2 specific by design). */
+    private static void flattenDegree2(Map<VarSet, Double> coeffs, int n, double[] lin, double[][] quad) {
+        for (Map.Entry<VarSet, Double> e : coeffs.entrySet()) {
+            VarSet J = e.getKey();
+            if (J.degree() == 1) {
+                lin[J.vars()[0]] += e.getValue();
+            } else if (J.degree() == 2) {
+                int[] v = J.vars();
+                quad[v[0]][v[1]] += e.getValue();
             }
         }
-        return new SamplingPass(c, lin, quad, samples);
-    }
-
-    private static SamplingPass samplePenaltyTerms(int n, List<DVPair> flatVars, QuboContext ctx,
-                                                    Evaluator evaluator,
-                                                    Consumer<String> progress) throws Exception {
-        double[] lin = new double[n];
-        double[][] quad = new double[n][n];
-        int[] zeros = new int[n];
-        List<SampleRecord> samples = new ArrayList<>(1 + n + n * (n - 1) / 2);
-
-        report(progress, "Sampling: penalty constant term");
-        double c = evalPenalty(zeros, flatVars, ctx, evaluator);
-        samples.add(new SampleRecord(zeros, "pen_const", c, -1, -1));
-
-        for (int i = 0; i < n; i++) {
-            checkCancelled();
-            report(progress, "Sampling: penalty linear (" + (i + 1) + "/" + n + ")…");
-            int[] ei = new int[n];
-            ei[i] = 1;
-            double rawLin = evalPenalty(ei, flatVars, ctx, evaluator);
-            samples.add(new SampleRecord(ei, "pen_lin_i=" + i, rawLin, i, i));
-            lin[i] = rawLin - c;
-        }
-
-        int totalPairs = n * (n - 1) / 2;
-        for (int i = 0, pairCount = 0; i < n; i++) {
-            for (int j = i + 1; j < n; j++) {
-                checkCancelled();
-                pairCount++;
-                report(progress, "Sampling: penalty quadratic (" + pairCount + "/" + totalPairs + ")…");
-                int[] eij = new int[n];
-                eij[i] = 1;
-                eij[j] = 1;
-                double rawQuad = evalPenalty(eij, flatVars, ctx, evaluator);
-                samples.add(new SampleRecord(eij, "pen_quad_i=" + i + "_j=" + j, rawQuad, i, j));
-                quad[i][j] = rawQuad - lin[i] - lin[j] - c;
-            }
-        }
-        return new SamplingPass(c, lin, quad, samples);
     }
 
     /**
@@ -301,45 +251,129 @@ public class QuboEngine {
         return B;
     }
 
-    /** Merges cost(x) + B * penalty(x) into a single set of QUBO coefficients. */
-    private static CombinedCoefficients combine(int n, SamplingPass cost, SamplingPass penalty, double B) {
-        double c = cost.c + B * penalty.c;
-        double[] lin = new double[n];
-        double[][] quad = new double[n][n];
-        for (int i = 0; i < n; i++) {
-            lin[i] = cost.lin[i] + B * penalty.lin[i];
+    /** Merges cost(x) + B * penalty(x) into a single pseudo-Boolean polynomial, any degree. */
+    private static Map<VarSet, Double> combine(Map<VarSet, Double> cost, Map<VarSet, Double> penalty, double B) {
+        Map<VarSet, Double> combined = new LinkedHashMap<>(cost);
+        for (Map.Entry<VarSet, Double> e : penalty.entrySet()) {
+            combined.merge(e.getKey(), B * e.getValue(), Double::sum);
         }
-        for (int i = 0; i < n; i++) {
-            for (int j = i + 1; j < n; j++) {
-                quad[i][j] = cost.quad[i][j] + B * penalty.quad[i][j];
-            }
-        }
-        return new CombinedCoefficients(c, lin, quad);
+        return combined;
     }
 
-    /** Trims near-zero coefficients (per EPS) and assembles the final QuboResult. */
-    private static QuboResult buildResult(int n, int nSamples, CombinedCoefficients combined,
-                                           List<String> varLabels, double B,
-                                           List<SampleRecord> costSamples, List<SampleRecord> penaltySamples,
-                                           List<ExactnessPoint> exactnessPoints, boolean exact) {
+    /** Evaluates a pseudo-Boolean polynomial (any degree) at binary vector x. */
+    private static double evalPoly(Map<VarSet, Double> coeffs, int[] x) {
+        double sum = 0.0;
+        for (Map.Entry<VarSet, Double> e : coeffs.entrySet()) {
+            boolean allOne = true;
+            for (int v : e.getKey().vars()) {
+                if (x[v] == 0) { allOne = false; break; }
+            }
+            if (allOne) sum += e.getValue();
+        }
+        return sum;
+    }
+
+    // -------------------------------------------------------------------------
+    // Result assembly (quadratization when degree > 2)
+    // -------------------------------------------------------------------------
+
+    /** Trims near-zero coefficients (per EPS), quadratizes if needed, and assembles the final QuboResult. */
+    private static QuboResult buildResult(int n, int nSamples, Map<VarSet, Double> combined,
+            List<String> varLabels, double B, List<SampleRecord> costSamples, List<SampleRecord> penaltySamples,
+            List<ExactnessPoint> exactnessPoints, boolean degreeExact, int degree) {
+
+        double constant = combined.getOrDefault(VarSet.EMPTY, 0.0);
+
+        if (degree <= 2) {
+            Map<Integer, Double> linearMap = new LinkedHashMap<>();
+            Map<String, Double> quadMap = new LinkedHashMap<>();
+            for (Map.Entry<VarSet, Double> e : combined.entrySet()) {
+                VarSet J = e.getKey();
+                if (J.degree() == 1 && Math.abs(e.getValue()) >= EPS) {
+                    linearMap.put(J.vars()[0], e.getValue());
+                } else if (J.degree() == 2 && Math.abs(e.getValue()) >= EPS) {
+                    int[] v = J.vars();
+                    quadMap.put(v[0] + "," + v[1], e.getValue());
+                }
+            }
+            return new QuboResult(n, nSamples, degreeExact, constant, linearMap, quadMap,
+                    varLabels, B, 0L, costSamples, penaltySamples, exactnessPoints, degree, 0, 0.0);
+        }
+
+        Quadratizer.Result qz = Quadratizer.reduce(n, combined, varLabels);
+        boolean quadExact = verifyQuadratization(qz, n, exactnessPoints);
+        boolean exact = degreeExact && quadExact;
+        if (!quadExact) {
+            PluginLog.warn("QuboEngine: quadratization verification FAILED — the reduced QUBO does not "
+                    + "reproduce the degree-" + degree + " polynomial on held-out points.");
+        } else {
+            PluginLog.info("Quadratization verification: PASS (nAncilla=" + qz.nAncilla
+                    + ", penaltyWeight=" + qz.penaltyWeight + ")");
+        }
+
+        int totalVars = n + qz.nAncilla;
+        List<String> extendedLabels = new ArrayList<>(varLabels);
+        extendedLabels.addAll(qz.ancillaLabels);
+
         Map<Integer, Double> linearMap = new LinkedHashMap<>();
-        for (int i = 0; i < n; i++) {
-            if (Math.abs(combined.lin[i]) >= EPS) linearMap.put(i, combined.lin[i]);
+        for (int i = 0; i < totalVars; i++) {
+            if (Math.abs(qz.lin[i]) >= EPS) linearMap.put(i, qz.lin[i]);
         }
         Map<String, Double> quadMap = new LinkedHashMap<>();
-        for (int i = 0; i < n; i++) {
-            for (int j = i + 1; j < n; j++) {
-                if (Math.abs(combined.quad[i][j]) >= EPS) quadMap.put(i + "," + j, combined.quad[i][j]);
+        for (int i = 0; i < totalVars; i++) {
+            for (int j = i + 1; j < totalVars; j++) {
+                if (Math.abs(qz.quad[i][j]) >= EPS) quadMap.put(i + "," + j, qz.quad[i][j]);
             }
         }
-        return new QuboResult(n, nSamples, exact, combined.c, linearMap, quadMap,
-                varLabels, B, 0L, costSamples, penaltySamples, exactnessPoints);
+
+        return new QuboResult(totalVars, nSamples, exact, qz.constant, linearMap, quadMap,
+                extendedLabels, B, 0L, costSamples, penaltySamples, exactnessPoints, degree,
+                qz.nAncilla, qz.penaltyWeight);
+    }
+
+    /**
+     * Confirms the quadratized QUBO reproduces the true f(x) on the same held-out points already
+     * used for degree-K exactness, by setting each ancilla bit to the exact product it encodes
+     * (Rosenberg's substitution guarantees the minimum over the ancilla reaches this value, so no
+     * actual minimisation is needed to check it).
+     */
+    private static boolean verifyQuadratization(Quadratizer.Result qz, int n, List<ExactnessPoint> exactnessPoints) {
+        if (qz.nAncilla == 0) return true;
+        for (ExactnessPoint p : exactnessPoints) {
+            if (p.evalFailed) continue;
+            double[] full = new double[n + qz.nAncilla];
+            for (int i = 0; i < n; i++) full[i] = p.vector[i];
+            for (int k = 0; k < qz.nAncilla; k++) {
+                // ancilla pairs are encoded positionally in ancillaLabels' creation order; recompute
+                // the product directly from the already-resolved earlier entries of full[].
+                full[n + k] = ancillaProduct(qz, k, full);
+            }
+            double qx = evalQuadratic(qz.constant, qz.lin, qz.quad, full);
+            if (Math.abs(qx - p.fx) >= EPS) return false;
+        }
+        return true;
+    }
+
+    private static double ancillaProduct(Quadratizer.Result qz, int k, double[] full) {
+        int[] pair = qz.ancillaPairs.get(k);
+        return full[pair[0]] * full[pair[1]];
+    }
+
+    private static double evalQuadratic(double c, double[] lin, double[][] quad, double[] x) {
+        double r = c;
+        for (int i = 0; i < lin.length; i++) r += lin[i] * x[i];
+        for (int i = 0; i < quad.length; i++) {
+            for (int j = i + 1; j < quad.length; j++) {
+                r += quad[i][j] * x[i] * x[j];
+            }
+        }
+        return r;
     }
 
     // -------------------------------------------------------------------------
 
     /**
-     * Evaluates the derived QUBO polynomial q(x) against the true f(x) on up to
+     * Evaluates the derived polynomial q(x) against the true f(x) on up to
      * {@link QuboConstants#EXACTNESS_SAMPLE_COUNT} random held-out binary vectors
      * (Hamming weight ≥ {@link QuboConstants#EXACTNESS_MIN_HAMMING_WEIGHT}) and
      * returns all evaluation points for diagnostic display. Does not short-circuit
@@ -350,11 +384,9 @@ public class QuboEngine {
      * distinct qualifying vectors exist, the method stops after the retry budget
      * is exhausted and returns however many points were collected.
      */
-    private static List<ExactnessPoint> checkExactness(int n, double c, double[] linCoeffs,
-                                                        double[][] quadCoeffs, List<DVPair> flatVars,
-                                                        QuboContext ctx, Evaluator evaluator,
-                                                        Expression objExpr, double B,
-                                                        Map<String, Set<MLink>> savedLinks) {
+    private static List<ExactnessPoint> checkExactness(int n, Map<VarSet, Double> combined,
+            List<DVPair> flatVars, QuboContext ctx, Evaluator evaluator, Expression objExpr, double B,
+            Map<String, Set<MLink>> savedLinks) {
         stripDecisionLinks(ctx);
 
         List<ExactnessPoint> points = new ArrayList<>(QuboConstants.EXACTNESS_SAMPLE_COUNT);
@@ -375,13 +407,7 @@ public class QuboEngine {
                 if (ones < QuboConstants.EXACTNESS_MIN_HAMMING_WEIGHT) continue;
 
                 k++;
-                double qx = c;
-                for (int i = 0; i < n; i++) qx += linCoeffs[i] * x[i];
-                for (int i = 0; i < n; i++) {
-                    for (int j = i + 1; j < n; j++) {
-                        qx += quadCoeffs[i][j] * x[i] * x[j];
-                    }
-                }
+                double qx = evalPoly(combined, x);
 
                 try {
                     double fx = evalCost(x, flatVars, ctx, evaluator, objExpr)

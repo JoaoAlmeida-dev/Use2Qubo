@@ -26,31 +26,42 @@ public class QuboResult {
     public final List<SampleRecord> penaltySamples;
     /** Held-out evaluation points from the exactness check; up to 20 records. */
     public final List<ExactnessPoint> exactnessPoints;
+    /** Pseudo-Boolean polynomial degree actually explored (2 = no escalation needed). */
+    public final int polyDegree;
+    /** Number of Rosenberg-quadratization ancilla variables appended after the original nVars. */
+    public final int nAncillaVars;
+    /** Penalty weight applied to each ancilla-consistency term; 0 when no quadratization was needed. */
+    public final double quadratizationPenalty;
 
     QuboResult(int nVars, int nSamples, boolean exact, double constant,
                Map<Integer, Double> linear, Map<String, Double> quadratic,
                List<String> varLabels, double penaltyWeight, long derivationMs,
                List<SampleRecord> costSamples, List<SampleRecord> penaltySamples,
-               List<ExactnessPoint> exactnessPoints) {
-        this.nVars           = nVars;
-        this.nSamples        = nSamples;
-        this.exact           = exact;
-        this.constant        = constant;
-        this.linear          = Collections.unmodifiableMap(linear);
-        this.quadratic       = Collections.unmodifiableMap(quadratic);
-        this.varLabels       = Collections.unmodifiableList(varLabels);
-        this.penaltyWeight   = penaltyWeight;
-        this.derivationMs    = derivationMs;
-        this.costSamples     = Collections.unmodifiableList(costSamples);
-        this.penaltySamples  = Collections.unmodifiableList(penaltySamples);
-        this.exactnessPoints = Collections.unmodifiableList(exactnessPoints);
+               List<ExactnessPoint> exactnessPoints, int polyDegree, int nAncillaVars,
+               double quadratizationPenalty) {
+        this.nVars                 = nVars;
+        this.nSamples               = nSamples;
+        this.exact                  = exact;
+        this.constant                = constant;
+        this.linear                  = Collections.unmodifiableMap(linear);
+        this.quadratic               = Collections.unmodifiableMap(quadratic);
+        this.varLabels               = Collections.unmodifiableList(varLabels);
+        this.penaltyWeight           = penaltyWeight;
+        this.derivationMs            = derivationMs;
+        this.costSamples             = Collections.unmodifiableList(costSamples);
+        this.penaltySamples          = Collections.unmodifiableList(penaltySamples);
+        this.exactnessPoints         = Collections.unmodifiableList(exactnessPoints);
+        this.polyDegree              = polyDegree;
+        this.nAncillaVars            = nAncillaVars;
+        this.quadratizationPenalty   = quadratizationPenalty;
     }
 
     /** Returns copy of this result with derivationMs set to ms. */
     public QuboResult withDerivationMs(long ms) {
         return new QuboResult(nVars, nSamples, exact, constant,
                 linear, quadratic, varLabels, penaltyWeight, ms,
-                costSamples, penaltySamples, exactnessPoints);
+                costSamples, penaltySamples, exactnessPoints, polyDegree, nAncillaVars,
+                quadratizationPenalty);
     }
 
     /** Evaluate the QUBO polynomial q(x) = c + sum_i c_i*x_i + sum_{i<j} c_ij*x_i*x_j. */
@@ -72,8 +83,10 @@ public class QuboResult {
     public String toString() {
         return String.format("QuboResult{nVars=%d, nSamples=%d, exact=%b, "
                 + "constant=%.4f, |linear|=%d, |quadratic|=%d, "
-                + "|costSamples|=%d, |penaltySamples|=%d, |exactnessPoints|=%d}",
+                + "|costSamples|=%d, |penaltySamples|=%d, |exactnessPoints|=%d, "
+                + "polyDegree=%d, nAncillaVars=%d}",
                 nVars, nSamples, exact, constant, linear.size(), quadratic.size(),
-                costSamples.size(), penaltySamples.size(), exactnessPoints.size());
+                costSamples.size(), penaltySamples.size(), exactnessPoints.size(),
+                polyDegree, nAncillaVars);
     }
 }
