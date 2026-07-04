@@ -52,7 +52,7 @@ public class QuboContext {
     public final List<MClassInvariant> invariants;       // all model invariants
     public final Map<String, List<MObject>> objectsByClass;
     public final Map<String, List<MLink>>   fixedLinks;  // assocName → links (non-decision)
-    public final List<DecisionVar> decisionVars;         // ordered, from export_config
+    public final List<DecisionVar> decisionVars;         // ordered, from qubo_config
     public final int nVars;
     public final String objectiveExpr;  // OCL string from qubo_config.json
     public final boolean minimise;

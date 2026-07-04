@@ -56,7 +56,7 @@ Minimal example:
 }
 ```
 
-### Field notes (full ref: `examples/GarageTrucks/export_config_schema.md`)
+### Field notes (full ref: `examples/GarageTrucks/qubo_config_schema.md`)
 
 - `decision_var_associations` — assoc names treated as binary vars. Must exist in `.use` model.
 - `decision_vars[].type` — only `"link"` supported now.

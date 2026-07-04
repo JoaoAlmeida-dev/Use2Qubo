@@ -1,6 +1,7 @@
 package org.tzi.use.plugin.use2qubo.qubo;
 
 import com.google.gson.Gson;
+import org.tzi.use.plugin.use2qubo.util.QuboConstants;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,14 +28,19 @@ public class QuboConfig {
     /** True = minimise the objective. */
     public final boolean minimise;
 
+    /** Cap on pseudo-Boolean polynomial degree explored before quadratization (see {@code max_degree}). */
+    public final int maxDegree;
+
     private QuboConfig(Set<String> decisionVarAssocs,
                        List<String[]> dvEntries,
                        String objectiveExpr,
-                       boolean minimise) {
+                       boolean minimise,
+                       int maxDegree) {
         this.decisionVarAssocs = decisionVarAssocs;
         this.dvEntries         = dvEntries;
         this.objectiveExpr     = objectiveExpr;
         this.minimise          = minimise;
+        this.maxDegree         = maxDegree;
     }
 
     boolean isDecisionVar(String assocName) {
@@ -64,7 +70,10 @@ public class QuboConfig {
 
         String expr = model.objective == null ? null : model.objective.expression;
         boolean minimise = model.objective == null || model.objective.minimise;
+        int maxDegree = (model.objective != null && model.objective.max_degree != null)
+                ? model.objective.max_degree
+                : QuboConstants.DEFAULT_MAX_POLY_DEGREE;
 
-        return new QuboConfig(assocs, dvEntries, expr, minimise);
+        return new QuboConfig(assocs, dvEntries, expr, minimise, maxDegree);
     }
 }

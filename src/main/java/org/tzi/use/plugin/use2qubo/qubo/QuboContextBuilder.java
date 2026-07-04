@@ -57,7 +57,7 @@ public class QuboContextBuilder {
         PluginLog.info("Context ready: nVars=" + nVars + ", decisionVars=" + decisionVars.size());
 
         return new QuboContext(system, model, state, invariants, objectsByClass,
-                fixedLinks, decisionVars, nVars, config.objectiveExpr, config.minimise);
+                fixedLinks, decisionVars, nVars, config.objectiveExpr, config.minimise, config.maxDegree);
     }
 
     // ------------------------------------------------------------------
