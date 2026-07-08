@@ -1,4 +1,4 @@
-package org.tzi.use.plugin.use2qubo.qubo;
+package org.tzi.use.plugin.use2qubo.qubo.result;
 
 import java.io.File;
 import java.io.IOException;
@@ -9,8 +9,17 @@ import java.util.Map;
 import org.tzi.use.plugin.use2qubo.util.PluginLog;
 import org.tzi.use.plugin.use2qubo.util.SimpleJsonWriter;
 
+/**
+ * Serialises a {@link QuboResult} to the {@code qubo.json} export format (nVars, nSamples,
+ * exact, constant, polyDegree, ancilla count/penalty, sparse {@code linear}/{@code quadratic}
+ * coefficient maps, and {@code varLabels}) via {@link SimpleJsonWriter}. This is the sole writer
+ * of {@code qubo.json}; both the "Derive QUBO Matrix" GUI action and {@link
+ * org.tzi.use.plugin.use2qubo.cli.QuboCli} funnel through it so headless and interactive runs
+ * produce byte-identical output for the same input.
+ */
 public class QuboResultExporter {
 
+    /** Writes {@code result} as JSON to {@code outputFile}, overwriting any existing content. */
     public static void write(QuboResult result, File outputFile) throws IOException {
         SimpleJsonWriter w = new SimpleJsonWriter();
         w.objectOpen();

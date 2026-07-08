@@ -1,4 +1,4 @@
-package org.tzi.use.plugin.use2qubo.qubo;
+package org.tzi.use.plugin.use2qubo.qubo.engine;
 
 import java.util.ArrayList;
 import java.util.Arrays;

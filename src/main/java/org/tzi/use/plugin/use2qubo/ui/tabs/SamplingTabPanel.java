@@ -22,8 +22,8 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
 
-import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
-import org.tzi.use.plugin.use2qubo.qubo.SampleRecord;
+import org.tzi.use.plugin.use2qubo.qubo.result.QuboResult;
+import org.tzi.use.plugin.use2qubo.qubo.result.SampleRecord;
 import org.tzi.use.plugin.use2qubo.ui.ViewFormatUtil;
 
 /** "Sampling" tab: cost/penalty AutoQUBO probe tables, one per pass, with term-type colouring,

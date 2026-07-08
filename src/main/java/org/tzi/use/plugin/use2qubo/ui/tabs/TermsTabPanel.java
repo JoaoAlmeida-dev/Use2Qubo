@@ -10,7 +10,7 @@ import javax.swing.JTable;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 
-import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
+import org.tzi.use.plugin.use2qubo.qubo.result.QuboResult;
 
 /** "Terms" tab: flat list of all non-zero coefficients, sorted by |coefficient| descending. */
 public class TermsTabPanel extends JScrollPane {

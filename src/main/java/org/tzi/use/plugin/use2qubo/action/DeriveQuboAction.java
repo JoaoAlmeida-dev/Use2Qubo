@@ -3,10 +3,10 @@ package org.tzi.use.plugin.use2qubo.action;
 import org.tzi.use.gui.main.MainWindow;
 import org.tzi.use.gui.main.ViewFrame;
 import org.tzi.use.main.Session;
-import org.tzi.use.plugin.use2qubo.qubo.QuboContext;
-import org.tzi.use.plugin.use2qubo.qubo.QuboContextBuilder;
-import org.tzi.use.plugin.use2qubo.qubo.QuboEngine;
-import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
+import org.tzi.use.plugin.use2qubo.qubo.context.QuboContext;
+import org.tzi.use.plugin.use2qubo.qubo.context.QuboContextBuilder;
+import org.tzi.use.plugin.use2qubo.qubo.engine.QuboEngine;
+import org.tzi.use.plugin.use2qubo.qubo.result.QuboResult;
 import org.tzi.use.plugin.use2qubo.ui.QuboMatrixView;
 import org.tzi.use.plugin.use2qubo.util.PluginLog;
 import org.tzi.use.runtime.gui.IPluginAction;
@@ -19,6 +19,13 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 
+/**
+ * Menu action "Derive QUBO Matrix": builds a {@link QuboContext} from the loaded model/state,
+ * runs {@link QuboEngine#derive} on a background {@link SwingWorker} (with a cancellable modal
+ * progress dialog driven by the engine's step-label callback), and on success opens the result
+ * in a {@link QuboMatrixView} docked inside a USE {@link ViewFrame}. Requires a loaded model with
+ * non-empty state (a {@code .cmd} script already run).
+ */
 public class DeriveQuboAction implements IPluginActionDelegate {
 
     @Override

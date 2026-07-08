@@ -20,10 +20,16 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.ToolTipManager;
 
-import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
+import org.tzi.use.plugin.use2qubo.qubo.result.QuboResult;
 import org.tzi.use.plugin.use2qubo.ui.ViewFormatUtil;
 import org.tzi.use.plugin.use2qubo.util.QuboConstants;
 
+/**
+ * Force-directed-style graph tab: draws one node per decision variable (radius/label from
+ * {@link ViewFormatUtil}) and one edge per non-zero quadratic coefficient, with edge colour
+ * (blue/red) and thickness encoding sign and magnitude relative to {@link #maxLinear}/{@link
+ * #maxQuad}. Hovering a node or edge shows its coefficient value via a tooltip.
+ */
 public class QuboGraphPanel extends JPanel {
 
     private static final Color BLUE = new Color(100, 149, 237);

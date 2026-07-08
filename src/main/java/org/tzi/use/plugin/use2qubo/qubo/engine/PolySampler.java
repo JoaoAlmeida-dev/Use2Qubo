@@ -1,10 +1,12 @@
-package org.tzi.use.plugin.use2qubo.qubo;
+package org.tzi.use.plugin.use2qubo.qubo.engine;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+
+import org.tzi.use.plugin.use2qubo.qubo.result.SampleRecord;
 
 /**
  * Generalised AutoQUBO sampling (Moraglio et al., GECCO '22, Algorithm 1): samples a black-box
@@ -79,24 +81,29 @@ public final class PolySampler {
         int derivedI;
         int derivedJ;
         String phase;
-        if (vars.length == 0) {
-            derivedI = -1;
-            derivedJ = -1;
-            phase = prefix + "_const";
-        } else if (vars.length == 1) {
-            derivedI = vars[0];
-            derivedJ = vars[0];
-            phase = prefix + "_lin_i=" + vars[0];
-        } else if (vars.length == 2) {
-            derivedI = vars[0];
-            derivedJ = vars[1];
-            phase = prefix + "_quad_i=" + vars[0] + "_j=" + vars[1];
-        } else {
-            derivedI = -2;
-            derivedJ = -2;
-            StringBuilder sb = new StringBuilder(prefix).append("_deg").append(vars.length);
-            for (int v : vars) sb.append("_").append(v);
-            phase = sb.toString();
+        switch (vars.length) {
+            case 0:
+                derivedI = -1;
+                derivedJ = -1;
+                phase = prefix + "_const";
+                break;
+            case 1:
+                derivedI = vars[0];
+                derivedJ = vars[0];
+                phase = prefix + "_lin_i=" + vars[0];
+                break;
+            case 2:
+                derivedI = vars[0];
+                derivedJ = vars[1];
+                phase = prefix + "_quad_i=" + vars[0] + "_j=" + vars[1];
+                break;
+            default:
+                derivedI = -2;
+                derivedJ = -2;
+                StringBuilder sb = new StringBuilder(prefix).append("_deg").append(vars.length);
+                for (int v : vars) sb.append("_").append(v);
+                phase = sb.toString();
+                break;
         }
         return new SampleRecord(x, phase, rawValue, derivedI, derivedJ, vars);
     }

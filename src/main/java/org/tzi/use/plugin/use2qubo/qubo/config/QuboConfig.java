@@ -1,4 +1,4 @@
-package org.tzi.use.plugin.use2qubo.qubo;
+package org.tzi.use.plugin.use2qubo.qubo.config;
 
 import com.google.gson.Gson;
 import org.tzi.use.plugin.use2qubo.util.QuboConstants;
@@ -43,7 +43,7 @@ public class QuboConfig {
         this.maxDegree         = maxDegree;
     }
 
-    boolean isDecisionVar(String assocName) {
+    public boolean isDecisionVar(String assocName) {
         return decisionVarAssocs.contains(assocName);
     }
 

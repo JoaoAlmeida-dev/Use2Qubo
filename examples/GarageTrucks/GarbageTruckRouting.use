@@ -110,8 +110,9 @@ context GarbageBin
     self.currentFill >= 0 and self.currentFill <= self.maxFill
 
   inv binCovered:
-    RouteRoad.allInstances->exists(rr |
-      rr.roads.origin = self.location or rr.roads.destination = self.location)
+    RouteRoad.allInstances->
+      exists(rr | rr.roads.origin = self.location
+               or rr.roads.destination = self.location)
 
 -- -----------------------------------------------------------
 -- Road constraints

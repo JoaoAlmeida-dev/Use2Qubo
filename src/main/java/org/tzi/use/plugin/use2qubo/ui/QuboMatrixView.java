@@ -21,8 +21,8 @@ import javax.swing.SwingWorker;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 import org.tzi.use.gui.views.View;
-import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
-import org.tzi.use.plugin.use2qubo.qubo.QuboResultExporter;
+import org.tzi.use.plugin.use2qubo.qubo.result.QuboResult;
+import org.tzi.use.plugin.use2qubo.qubo.result.QuboResultExporter;
 import org.tzi.use.plugin.use2qubo.ui.tabs.ExactnessTabPanel;
 import org.tzi.use.plugin.use2qubo.ui.tabs.MatrixTabPanel;
 import org.tzi.use.plugin.use2qubo.ui.tabs.QuboGraphPanel;
@@ -30,6 +30,12 @@ import org.tzi.use.plugin.use2qubo.ui.tabs.SamplingTabPanel;
 import org.tzi.use.plugin.use2qubo.ui.tabs.TermsTabPanel;
 import org.tzi.use.plugin.use2qubo.util.PluginLog;
 
+/**
+ * Top-level dockable view for a {@link QuboResult}: a summary stats header plus a tabbed pane
+ * (matrix, terms, sampling, exactness, graph — see {@code ui.tabs}) and an export-to-JSON
+ * button ({@link QuboResultExporter}). Opened by {@link
+ * org.tzi.use.plugin.use2qubo.action.DeriveQuboAction} after a successful derivation.
+ */
 public class QuboMatrixView extends JPanel implements View {
 
     public QuboMatrixView(QuboResult result) {

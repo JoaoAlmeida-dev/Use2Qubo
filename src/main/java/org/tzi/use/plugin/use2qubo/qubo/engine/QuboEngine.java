@@ -1,6 +1,11 @@
-package org.tzi.use.plugin.use2qubo.qubo;
+package org.tzi.use.plugin.use2qubo.qubo.engine;
 
 import org.tzi.use.parser.ocl.OCLCompiler;
+import org.tzi.use.plugin.use2qubo.qubo.context.DecisionVar;
+import org.tzi.use.plugin.use2qubo.qubo.context.QuboContext;
+import org.tzi.use.plugin.use2qubo.qubo.result.ExactnessPoint;
+import org.tzi.use.plugin.use2qubo.qubo.result.QuboResult;
+import org.tzi.use.plugin.use2qubo.qubo.result.SampleRecord;
 import org.tzi.use.plugin.use2qubo.util.PluginLog;
 import org.tzi.use.plugin.use2qubo.util.QuboConstants;
 import org.tzi.use.uml.mm.MAssociation;

@@ -36,7 +36,7 @@ import javax.swing.UIManager;
 
 import org.tzi.use.gui.views.View;
 import org.tzi.use.parser.ocl.OCLCompiler;
-import org.tzi.use.plugin.use2qubo.qubo.QuboConfig;
+import org.tzi.use.plugin.use2qubo.qubo.config.QuboConfig;
 import org.tzi.use.plugin.use2qubo.util.PluginLog;
 import org.tzi.use.plugin.use2qubo.util.QuboConstants;
 import org.tzi.use.plugin.use2qubo.util.SimpleJsonWriter;
@@ -45,6 +45,13 @@ import org.tzi.use.uml.mm.MModel;
 import org.tzi.use.uml.ocl.expr.Expression;
 import org.tzi.use.uml.ocl.value.VarBindings;
 
+/**
+ * Editable form view for {@code qubo_config.json}: objective OCL expression (validated live
+ * against the model via {@link OCLCompiler}), minimise/maximise toggle, max-degree spinner, and
+ * a checkbox per model association marking it a decision variable. Opened by {@link
+ * org.tzi.use.plugin.use2qubo.action.EditQuboConfigAction}; save writes the form state back to
+ * the same file as JSON.
+ */
 public class QuboConfigView extends JPanel implements View {
 
     private final JTextField objectiveField = new JTextField(50);
