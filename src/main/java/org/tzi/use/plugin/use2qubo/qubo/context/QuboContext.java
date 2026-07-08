@@ -1,4 +1,4 @@
-package org.tzi.use.plugin.use2qubo.qubo;
+package org.tzi.use.plugin.use2qubo.qubo.context;
 
 import org.tzi.use.uml.mm.MClassInvariant;
 import org.tzi.use.uml.mm.MModel;
@@ -12,6 +12,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Immutable snapshot of everything {@link org.tzi.use.plugin.use2qubo.qubo.engine.QuboEngine}
+ * needs to derive a QUBO: the live USE
+ * model/state, its class invariants and objects, the fixed (non-decision-var) links, and the
+ * ordered {@link DecisionVar} list with {@link #objectiveExpr}. Built once per derivation by
+ * {@link QuboContextBuilder#build} from {@code qubo_config.json}; the flat binary decision
+ * vector's index-to-(association, a, b) mapping is fixed by {@link #varIndex}.
+ */
 public class QuboContext {
 
     public final MSystem system;

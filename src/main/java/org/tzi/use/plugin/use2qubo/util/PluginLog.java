@@ -4,6 +4,13 @@ import java.io.PrintWriter;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+/**
+ * Static logging facade shared across the plugin: mirrors every INFO+ message to USE's own
+ * log panel (via the {@link PrintWriter} wired up by {@link #init}) and always to the
+ * {@code java.util.logging} logger {@code org.tzi.use.plugin.use2qubo}, so the same call sites
+ * work identically in the Swing plugin and the headless {@link org.tzi.use.plugin.use2qubo.cli.QuboCli}.
+ * {@link #init} must be called once per plugin action before logging (the CLI wires stderr instead).
+ */
 public final class PluginLog {
 
     private static final Logger JUL = Logger.getLogger("org.tzi.use.plugin.use2qubo");

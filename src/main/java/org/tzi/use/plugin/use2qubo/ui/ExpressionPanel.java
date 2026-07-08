@@ -15,7 +15,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
-import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
+import org.tzi.use.plugin.use2qubo.qubo.result.QuboResult;
 
 /** Renders the QUBO polynomial as a readable algebraic expression, with copy-to-clipboard. */
 public class ExpressionPanel extends JPanel {

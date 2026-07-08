@@ -1,6 +1,6 @@
 package org.tzi.use.plugin.use2qubo.ui.tabs;
 
-import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
+import org.tzi.use.plugin.use2qubo.qubo.result.QuboResult;
 import org.tzi.use.plugin.use2qubo.ui.ExpressionPanel;
 import org.tzi.use.plugin.use2qubo.ui.ViewFormatUtil;
 

@@ -2,7 +2,7 @@ package org.tzi.use.plugin.use2qubo.action;
 
 import org.tzi.use.gui.main.MainWindow;
 import org.tzi.use.gui.main.ViewFrame;
-import org.tzi.use.plugin.use2qubo.qubo.QuboConfigPaths;
+import org.tzi.use.plugin.use2qubo.qubo.config.QuboConfigPaths;
 import org.tzi.use.plugin.use2qubo.ui.QuboConfigView;
 import org.tzi.use.plugin.use2qubo.util.PluginLog;
 import org.tzi.use.runtime.gui.IPluginAction;
@@ -14,6 +14,12 @@ import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 
+/**
+ * Menu action "Edit QUBO Config": resolves {@code qubo_config.json} next to the loaded
+ * {@code .use} file (via {@link QuboConfigPaths#resolveConfigFile}) and opens it in a
+ * {@link QuboConfigView} form docked inside a USE {@link ViewFrame}, so the domain expert
+ * can author decision variables and the objective without hand-editing JSON.
+ */
 public class EditQuboConfigAction implements IPluginActionDelegate {
 
     @Override

@@ -1,4 +1,4 @@
-package org.tzi.use.plugin.use2qubo.qubo;
+package org.tzi.use.plugin.use2qubo.qubo.context;
 
 import java.io.File;
 import java.io.IOException;
@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.tzi.use.plugin.use2qubo.qubo.config.QuboConfig;
+import org.tzi.use.plugin.use2qubo.qubo.config.QuboConfigPaths;
 import org.tzi.use.plugin.use2qubo.util.PluginLog;
 import org.tzi.use.uml.mm.MAssociation;
 import org.tzi.use.uml.mm.MClassInvariant;
@@ -24,8 +26,17 @@ import org.tzi.use.uml.sys.MObject;
 import org.tzi.use.uml.sys.MSystem;
 import org.tzi.use.uml.sys.MSystemState;
 
+/**
+ * Assembles a {@link QuboContext} for a live {@link MSystem}: locates and parses
+ * {@code qubo_config.json} ({@link QuboConfig}), snapshots objects grouped by class,
+ * separates fixed links from decision-variable associations, and computes the total
+ * binary variable count {@code nVars}. Every list produced here is sorted (by object/association
+ * name) so {@link QuboContext#varIndex} and {@link org.tzi.use.plugin.use2qubo.qubo.engine.QuboEngine}'s
+ * flat variable ordering are deterministic across runs of the same model/state.
+ */
 public class QuboContextBuilder {
 
+    /** Resolves {@code qubo_config.json} next to the loaded model, then delegates to {@link #build(MSystem, Path)}. */
     public static QuboContext build(MSystem system) throws IOException {
         File configFile = QuboConfigPaths.resolveConfigFile(system);
         PluginLog.info("Resolved config path: " + configFile);

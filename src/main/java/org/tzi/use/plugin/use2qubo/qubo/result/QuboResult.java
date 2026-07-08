@@ -1,9 +1,17 @@
-package org.tzi.use.plugin.use2qubo.qubo;
+package org.tzi.use.plugin.use2qubo.qubo.result;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Immutable output of {@link org.tzi.use.plugin.use2qubo.qubo.engine.QuboEngine#derive}: the QUBO polynomial q(x) = constant +
+ * sum(linear) + sum(quadratic) over {@link #nVars} binary variables (original decision
+ * variables plus any {@link #nAncillaVars} Rosenberg quadratization ancillas appended after
+ * them), plus diagnostics (sampling records, held-out exactness points, penalty weight,
+ * polynomial degree explored). Serialised to {@code qubo.json} by {@link QuboResultExporter}
+ * and rendered by {@link org.tzi.use.plugin.use2qubo.ui.QuboMatrixView} and its tab panels.
+ */
 public class QuboResult {
 
     public final int nVars;
@@ -33,7 +41,7 @@ public class QuboResult {
     /** Penalty weight applied to each ancilla-consistency term; 0 when no quadratization was needed. */
     public final double quadratizationPenalty;
 
-    QuboResult(int nVars, int nSamples, boolean exact, double constant,
+    public QuboResult(int nVars, int nSamples, boolean exact, double constant,
                Map<Integer, Double> linear, Map<String, Double> quadratic,
                List<String> varLabels, double penaltyWeight, long derivationMs,
                List<SampleRecord> costSamples, List<SampleRecord> penaltySamples,

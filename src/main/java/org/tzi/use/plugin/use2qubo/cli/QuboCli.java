@@ -2,11 +2,11 @@ package org.tzi.use.plugin.use2qubo.cli;
 
 import org.tzi.use.parser.shell.ShellCommandCompiler;
 import org.tzi.use.parser.use.USECompiler;
-import org.tzi.use.plugin.use2qubo.qubo.QuboContext;
-import org.tzi.use.plugin.use2qubo.qubo.QuboContextBuilder;
-import org.tzi.use.plugin.use2qubo.qubo.QuboEngine;
-import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
-import org.tzi.use.plugin.use2qubo.qubo.QuboResultExporter;
+import org.tzi.use.plugin.use2qubo.qubo.context.QuboContext;
+import org.tzi.use.plugin.use2qubo.qubo.context.QuboContextBuilder;
+import org.tzi.use.plugin.use2qubo.qubo.engine.QuboEngine;
+import org.tzi.use.plugin.use2qubo.qubo.result.QuboResult;
+import org.tzi.use.plugin.use2qubo.qubo.result.QuboResultExporter;
 import org.tzi.use.plugin.use2qubo.util.PluginLog;
 import org.tzi.use.uml.mm.MModel;
 import org.tzi.use.uml.mm.ModelFactory;

@@ -16,8 +16,8 @@ import javax.swing.ToolTipManager;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 
-import org.tzi.use.plugin.use2qubo.qubo.ExactnessPoint;
-import org.tzi.use.plugin.use2qubo.qubo.QuboResult;
+import org.tzi.use.plugin.use2qubo.qubo.result.ExactnessPoint;
+import org.tzi.use.plugin.use2qubo.qubo.result.QuboResult;
 import org.tzi.use.plugin.use2qubo.ui.ViewFormatUtil;
 
 /** "Exactness" tab: held-out-vector exactness-check table (true f(x) vs QUBO approx q(x)). */
