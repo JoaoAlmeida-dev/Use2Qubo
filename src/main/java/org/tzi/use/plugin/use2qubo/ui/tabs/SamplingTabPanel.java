@@ -25,6 +25,7 @@ import javax.swing.table.TableCellRenderer;
 import org.tzi.use.plugin.use2qubo.qubo.result.QuboResult;
 import org.tzi.use.plugin.use2qubo.qubo.result.SampleRecord;
 import org.tzi.use.plugin.use2qubo.ui.ViewFormatUtil;
+import org.tzi.use.plugin.use2qubo.util.Combinatorics;
 
 /** "Sampling" tab: cost/penalty AutoQUBO probe tables, one per pass, with term-type colouring,
  *  probe-count summaries, search filtering, and click-through to the matching Q-matrix cell. */
@@ -67,7 +68,7 @@ public class SamplingTabPanel extends JSplitPane {
         summary.add(countLabel("quadratic", quadCount, expectedQuad));
         for (java.util.Map.Entry<Integer, Integer> e : higherOrderCounts.entrySet()) {
             int degree = e.getKey();
-            int expected = binomial(n, degree);
+            int expected = Combinatorics.binomial(n, degree);
             summary.add(countLabel("degree-" + degree, e.getValue(), expected));
         }
 
@@ -96,16 +97,6 @@ public class SamplingTabPanel extends JSplitPane {
         JLabel l = ViewFormatUtil.statLabel(name + ": " + actual + "/" + expected);
         if (actual != expected) l.setForeground(Color.RED);
         return l;
-    }
-
-    /** n choose k, for the "expected probe count" summary at escalated degrees. */
-    private static int binomial(int n, int k) {
-        if (k < 0 || k > n) return 0;
-        long result = 1;
-        for (int i = 0; i < k; i++) {
-            result = result * (n - i) / (i + 1);
-        }
-        return (int) result;
     }
 
     private static JTable buildTable(List<SampleRecord> samples, QuboResult result,
