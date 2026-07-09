@@ -21,6 +21,7 @@ import javax.swing.SwingWorker;
 import javax.swing.filechooser.FileNameExtensionFilter;
 
 import org.tzi.use.gui.views.View;
+import org.tzi.use.plugin.use2qubo.qubo.context.QuboContext;
 import org.tzi.use.plugin.use2qubo.qubo.result.QuboResult;
 import org.tzi.use.plugin.use2qubo.qubo.result.QuboResultExporter;
 import org.tzi.use.plugin.use2qubo.ui.tabs.ExactnessTabPanel;
@@ -28,6 +29,7 @@ import org.tzi.use.plugin.use2qubo.ui.tabs.MatrixTabPanel;
 import org.tzi.use.plugin.use2qubo.ui.tabs.QuboGraphPanel;
 import org.tzi.use.plugin.use2qubo.ui.tabs.SamplingTabPanel;
 import org.tzi.use.plugin.use2qubo.ui.tabs.TermsTabPanel;
+import org.tzi.use.plugin.use2qubo.ui.tabs.TryItTabPanel;
 import org.tzi.use.plugin.use2qubo.util.PluginLog;
 
 /**
@@ -38,7 +40,7 @@ import org.tzi.use.plugin.use2qubo.util.PluginLog;
  */
 public class QuboMatrixView extends JPanel implements View {
 
-    public QuboMatrixView(QuboResult result) {
+    public QuboMatrixView(QuboResult result, QuboContext ctx) {
         setLayout(new BorderLayout(4, 4));
         add(buildStatsPanel(result), BorderLayout.NORTH);
 
@@ -49,6 +51,7 @@ public class QuboMatrixView extends JPanel implements View {
         tabs.addTab("Graph", new QuboGraphPanel(result));
         tabs.addTab("Sampling", new SamplingTabPanel(result, matrixTab, () -> tabs.setSelectedComponent(matrixTab)));
         tabs.addTab("Exactness", new ExactnessTabPanel(result));
+        tabs.addTab("Try It", new TryItTabPanel(result, ctx));
         add(tabs, BorderLayout.CENTER);
 
         add(buildButtonPanel(result), BorderLayout.SOUTH);
