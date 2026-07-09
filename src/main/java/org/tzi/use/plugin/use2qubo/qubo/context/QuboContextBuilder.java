@@ -51,23 +51,34 @@ public class QuboContextBuilder {
                 + " decision-var entries, objective minimise=" + config.minimise);
 
         MModel model = system.model();
-        MSystemState state = system.state();
+        MSystemState liveState = system.state();
 
         List<MClassInvariant> invariants = new ArrayList<>(model.classInvariants());
         PluginLog.info("Model invariants: " + invariants.size());
 
-        Map<String, List<MObject>> objectsByClass = buildObjectsByClass(state);
-        PluginLog.debug("Objects by class: " + objectsByClass.keySet());
+        Map<String, List<MObject>> liveObjectsByClass = buildObjectsByClass(liveState);
+        PluginLog.debug("Objects by class: " + liveObjectsByClass.keySet());
 
-        Map<String, List<MLink>> fixedLinks = buildFixedLinks(model, state, config);
-        PluginLog.debug("Fixed-link associations: " + fixedLinks.size());
+        Map<String, List<MLink>> liveFixedLinks = buildFixedLinks(model, liveState, config);
+        PluginLog.debug("Fixed-link associations: " + liveFixedLinks.size());
+
+        SandboxSystemFactory.Sandbox sandbox;
+        try {
+            sandbox = SandboxSystemFactory.build(model, liveState, liveObjectsByClass, true, liveFixedLinks);
+        } catch (Exception e) {
+            throw new IOException("Failed to build sandbox system for derivation", e);
+        }
+        PluginLog.info("Derivation isolated on sandbox system (live model will not be mutated)");
+
+        Map<String, List<MObject>> objectsByClass = buildObjectsByClass(sandbox.state);
+        Map<String, List<MLink>> fixedLinks = buildFixedLinks(model, sandbox.state, config);
 
         List<DecisionVar> decisionVars = buildDecisionVars(config, objectsByClass);
 
         int nVars = computeNVars(decisionVars, objectsByClass);
         PluginLog.info("Context ready: nVars=" + nVars + ", decisionVars=" + decisionVars.size());
 
-        return new QuboContext(system, model, state, invariants, objectsByClass,
+        return new QuboContext(sandbox.system, model, sandbox.state, invariants, objectsByClass,
                 fixedLinks, decisionVars, nVars, config.objectiveExpr, config.minimise, config.maxDegree);
     }
 

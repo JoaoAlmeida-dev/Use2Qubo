@@ -2,6 +2,7 @@ package org.tzi.use.plugin.use2qubo.qubo;
 
 import com.google.gson.JsonSyntaxException;
 import org.junit.jupiter.api.Test;
+import org.tzi.use.plugin.use2qubo.qubo.config.QuboConfig;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

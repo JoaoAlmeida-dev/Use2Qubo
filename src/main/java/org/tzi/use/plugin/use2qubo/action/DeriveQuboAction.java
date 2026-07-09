@@ -15,6 +15,7 @@ import org.tzi.use.runtime.gui.IPluginActionDelegate;
 import javax.swing.*;
 import java.awt.*;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -98,7 +99,8 @@ public class DeriveQuboAction implements IPluginActionDelegate {
             protected QuboResult doInBackground() throws Exception {
                 PluginLog.info("QuboEngine.derive starting on background thread");
                 long t0 = System.nanoTime();
-                QuboResult result = QuboEngine.derive(ctx, this::publish);
+                QuboResult result = QuboEngine.derive(ctx, this::publish,
+                        (fromDegree, toDegree, expectedSamples) -> confirmEscalation(parent, fromDegree, toDegree, expectedSamples));
                 long ms = (System.nanoTime() - t0) / 1_000_000;
                 PluginLog.info("QuboEngine.derive finished in " + ms + " ms: " + result);
                 return result.withDerivationMs(ms);
@@ -146,5 +148,27 @@ public class DeriveQuboAction implements IPluginActionDelegate {
     @Override
     public boolean shouldBeEnabled(IPluginAction pluginAction) {
         return pluginAction.getSession().hasSystem();
+    }
+
+    /**
+     * Shows a Yes/No confirmation dialog on the EDT before sampling escalates to a higher
+     * degree, since {@link QuboEngine#derive} runs on a background {@link SwingWorker} thread.
+     * On failure to show the dialog, declines (safe default: stop rather than hang).
+     */
+    private static boolean confirmEscalation(MainWindow parent, int fromDegree, int toDegree, long expectedSamples) {
+        final boolean[] proceed = {false};
+        try {
+            SwingUtilities.invokeAndWait(() -> {
+                int result = JOptionPane.showConfirmDialog(parent,
+                        "Escalating to degree " + toDegree + " will run " + expectedSamples
+                                + " additional live-model evaluations. Continue?",
+                        "Degree Escalation", JOptionPane.YES_NO_OPTION);
+                proceed[0] = result == JOptionPane.YES_OPTION;
+            });
+        } catch (InvocationTargetException | InterruptedException e) {
+            PluginLog.warn("Failed to show degree-escalation confirmation dialog; declining", e);
+            return false;
+        }
+        return proceed[0];
     }
 }
