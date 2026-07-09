@@ -1,0 +1,47 @@
+model Selection
+
+-- ===========================================================
+-- Synthetic fixture for use2qubo's own test suite.
+-- No relation to any example under articles/qmod_2026/examples/ --
+-- deliberately generic so editing the paper's examples can never
+-- affect this model's meaning.
+--
+-- Picker has exactly 3 candidate Options; Chosen(Picker,Option) is
+-- the sole decision-variable association (nVars=3). The invariant
+-- below is a boolean indicator over all 3 variables at once, so it
+-- has no exact degree-2 polynomial representation -- but since any
+-- pseudo-Boolean function of n bits has an exact multilinear
+-- polynomial of degree <= n, it is guaranteed exact once sampling
+-- escalates to degree 3 (n=3), forcing >=1 quadratization ancilla.
+--
+-- Marked(Picker,Tag) is a second, fixed (non-decision) association
+-- with one real link, used to exercise ctx.fixedLinks / sandbox
+-- identity checks.
+-- ===========================================================
+
+class Picker
+end
+
+class Option
+attributes
+  weight : Real
+end
+
+class Tag
+end
+
+association Chosen between
+  Picker[1] role picker
+  Option[*] role options
+end
+
+association Marked between
+  Picker[1] role marker
+  Tag[*]    role tags
+end
+
+constraints
+
+context Picker
+  inv exactlyOneChosen:
+    self.options->size() = 1

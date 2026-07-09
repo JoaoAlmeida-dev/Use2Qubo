@@ -25,23 +25,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class QuboEngineTest {
 
     @Test
-    void garageTrucksEscalatesToDegreeSevenAndQuadratizesExactly() throws Exception {
-        // Feasibility (routeConnected, fuelWithinRange, capacityWithinRange, binCovered,
-        // routeTouchesDepot/Disposal) is expressed entirely as plain OCL invariants; the
-        // objective is pure edgeCost(). QuboEngine's own sampling/quadratization pass derives
-        // an exact QUBO for these once qubo_config.json's max_degree covers the true arity
-        // (the 7 RouteRoad candidates for this scenario's one route) -- no manual polynomial
-        // rewrite needed, per QuboEngine.logExactnessOutcome's own "raise max_degree" guidance.
-        MSystem system = UseFixtures.buildSystem(UseFixtures.garageTrucksUse(), UseFixtures.garageTrucksCmd());
-        QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.garageTrucksConfig().toPath());
+    void derive_escalatesAndQuadratizesExactly() throws Exception {
+        // Selection's exactlyOneChosen invariant is a boolean indicator over all 3 decision
+        // variables at once, so degree-2 sampling cannot represent it exactly. Since any
+        // pseudo-Boolean function of n bits has an exact multilinear polynomial of degree <= n,
+        // escalating to degree 3 (n=3, matching qubo_config.json's max_degree=3) is guaranteed
+        // to find an exact polynomial, whose cubic term forces >=1 quadratization ancilla.
+        MSystem system = UseFixtures.buildSystem(UseFixtures.selectionUse(), UseFixtures.selectionCmd());
+        QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.selectionConfig().toPath());
 
         QuboResult result = QuboEngine.derive(ctx, null);
 
         assertTrue(result.exact);
-        assertEquals(7, result.polyDegree);
-        assertEquals(238, result.nAncillaVars);
-        assertEquals(247, result.nVars);
-        assertEquals(247, result.varLabels.size());
+        assertEquals(3, result.polyDegree);
+        assertTrue(result.nAncillaVars > 0);
+        assertEquals(3 + result.nAncillaVars, result.nVars);
+        assertEquals(3 + result.nAncillaVars, result.varLabels.size());
         for (String key : result.quadratic.keySet()) {
             String[] parts = key.split(",");
             int i = Integer.parseInt(parts[0]);
@@ -51,28 +50,31 @@ class QuboEngineTest {
     }
 
     @Test
-    void maxCliqueRemainsInexactAtTheDegreeCapButStillExportsBestEffortQuadratization() throws Exception {
-        // MaxClique's cliqueProperty invariant is a boolean pass/fail over many decision
-        // variables at once (up to all 10), so it needs a polynomial degree far beyond the
-        // default max_degree=3 cap to be exact. When the cap is reached without exactness,
-        // QuboEngine still quadratizes the best degree-3 polynomial found (rather than
-        // silently discarding it back to a degree-2 slice) so the closest attempt is visible
-        // and the user can raise max_degree if a tighter fit is needed.
-        MSystem system = UseFixtures.buildSystem(UseFixtures.maxCliqueUse(), UseFixtures.maxCliqueCmd());
-        QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.maxCliqueConfig().toPath());
+    void derive_remainsInexactAtDegreeCap() throws Exception {
+        // AllOrNothing's allChosen invariant is true only when all 4 decision variables are
+        // selected: its exact multilinear representation is the single top-degree monomial
+        // x1*x2*x3*x4, with every lower-degree coefficient exactly zero. qubo_config.json caps
+        // max_degree=3 (< n=4), so sampling correctly finds zero contribution at every degree it
+        // explores (there is no partial/approximate degree-3 signal to pick up -- the true
+        // coefficient is entirely concentrated on the unreachable degree-4 term). The derived
+        // polynomial is therefore purely linear/constant, exactness fails on held-out points that
+        // depend on the missing term, and quadratization correctly finds nothing above degree 2
+        // to reduce (nAncillaVars stays 0) rather than fabricating a spurious ancilla.
+        MSystem system = UseFixtures.buildSystem(UseFixtures.allOrNothingUse(), UseFixtures.allOrNothingCmd());
+        QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.allOrNothingConfig().toPath());
 
         QuboResult result = QuboEngine.derive(ctx, null);
 
         assertFalse(result.exact);
         assertEquals(3, result.polyDegree);
-        assertTrue(result.nAncillaVars > 0);
-        assertEquals(10 + result.nAncillaVars, result.nVars);
+        assertEquals(0, result.nAncillaVars);
+        assertEquals(4, result.nVars);
     }
 
     @Test
     void derive_declinedEscalation_stopsAtLowerDegree() throws Exception {
-        MSystem system = UseFixtures.buildSystem(UseFixtures.maxCliqueUse(), UseFixtures.maxCliqueCmd());
-        QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.maxCliqueConfig().toPath());
+        MSystem system = UseFixtures.buildSystem(UseFixtures.allOrNothingUse(), UseFixtures.allOrNothingCmd());
+        QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.allOrNothingConfig().toPath());
 
         QuboResult result = QuboEngine.derive(ctx, null, (from, to, expected) -> false);
 
@@ -83,12 +85,12 @@ class QuboEngineTest {
 
     @Test
     void derive_acceptedEscalation_matchesLegacyBehaviour() throws Exception {
-        MSystem systemA = UseFixtures.buildSystem(UseFixtures.maxCliqueUse(), UseFixtures.maxCliqueCmd());
-        QuboContext ctxA = QuboContextBuilder.build(systemA, UseFixtures.maxCliqueConfig().toPath());
+        MSystem systemA = UseFixtures.buildSystem(UseFixtures.allOrNothingUse(), UseFixtures.allOrNothingCmd());
+        QuboContext ctxA = QuboContextBuilder.build(systemA, UseFixtures.allOrNothingConfig().toPath());
         QuboResult legacy = QuboEngine.derive(ctxA, null);
 
-        MSystem systemB = UseFixtures.buildSystem(UseFixtures.maxCliqueUse(), UseFixtures.maxCliqueCmd());
-        QuboContext ctxB = QuboContextBuilder.build(systemB, UseFixtures.maxCliqueConfig().toPath());
+        MSystem systemB = UseFixtures.buildSystem(UseFixtures.allOrNothingUse(), UseFixtures.allOrNothingCmd());
+        QuboContext ctxB = QuboContextBuilder.build(systemB, UseFixtures.allOrNothingConfig().toPath());
         QuboResult confirmed = QuboEngine.derive(ctxB, null, (from, to, expected) -> true);
 
         assertEquals(legacy.exact, confirmed.exact);
@@ -98,8 +100,8 @@ class QuboEngineTest {
 
     @Test
     void derive_confirmReceivesCorrectSampleCount() throws Exception {
-        MSystem system = UseFixtures.buildSystem(UseFixtures.maxCliqueUse(), UseFixtures.maxCliqueCmd());
-        QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.maxCliqueConfig().toPath());
+        MSystem system = UseFixtures.buildSystem(UseFixtures.allOrNothingUse(), UseFixtures.allOrNothingCmd());
+        QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.allOrNothingConfig().toPath());
 
         int[] fromDegree = {-1};
         int[] toDegree = {-1};
@@ -113,13 +115,13 @@ class QuboEngineTest {
 
         assertEquals(2, fromDegree[0]);
         assertEquals(3, toDegree[0]);
-        assertEquals(2L * Combinatorics.binomial(10, 3), expectedSamples[0]);
+        assertEquals(2L * Combinatorics.binomial(4, 3), expectedSamples[0]);
     }
 
     @Test
     void derive_isolatesSandboxState() throws Exception {
-        MSystem system = UseFixtures.buildSystem(UseFixtures.maxCliqueUse(), UseFixtures.maxCliqueCmd());
-        QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.maxCliqueConfig().toPath());
+        MSystem system = UseFixtures.buildSystem(UseFixtures.allOrNothingUse(), UseFixtures.allOrNothingCmd());
+        QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.allOrNothingConfig().toPath());
 
         QuboEngine.derive(ctx, null);
 
@@ -129,10 +131,10 @@ class QuboEngineTest {
 
     @Test
     void derive_attributeCopyIsFaithful() throws Exception {
-        MSystem system = UseFixtures.buildSystem(UseFixtures.garageTrucksUse(), UseFixtures.garageTrucksCmd());
-        QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.garageTrucksConfig().toPath());
+        MSystem system = UseFixtures.buildSystem(UseFixtures.selectionUse(), UseFixtures.selectionCmd());
+        QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.selectionConfig().toPath());
 
-        String expr = "Truck.allInstances->collect(t | t.fuelRange)->sum()";
+        String expr = "Option.allInstances->collect(o | o.weight)->sum()";
         StringWriter errBuf = new StringWriter();
         Expression compiled = OCLCompiler.compileExpression(
                 system.model(), expr, "test", new PrintWriter(errBuf), new VarBindings());

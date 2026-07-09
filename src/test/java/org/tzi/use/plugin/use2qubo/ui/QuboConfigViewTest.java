@@ -23,15 +23,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Regression coverage for two bugs found in manual testing: Save silently dropped
  * decision_vars (always wrote an empty array regardless of checked associations), and the
  * max-degree spinner's upper bound (6) made the up-arrow permanently dead on any config
- * already at or above that degree (e.g. GarageTrucks' max_degree=7).
+ * already at or above that degree (e.g. a fixture with max_degree=9).
  */
 class QuboConfigViewTest {
 
     @Test
     void save_writesDecisionVarsMatchingCheckedAssociations() throws Exception {
-        MSystem system = UseFixtures.buildSystem(UseFixtures.garageTrucksUse(), UseFixtures.garageTrucksCmd());
+        MSystem system = UseFixtures.buildSystem(UseFixtures.selectionUse(), UseFixtures.selectionCmd());
         MModel model = system.model();
-        File configFile = UseFixtures.garageTrucksConfig();
+        File configFile = UseFixtures.selectionUiConfig();
         File tmpConfig = File.createTempFile("qubo_config", ".json");
         tmpConfig.deleteOnExit();
         Files.write(tmpConfig.toPath(), Files.readAllBytes(configFile.toPath()));
@@ -41,8 +41,8 @@ class QuboConfigViewTest {
         @SuppressWarnings("unchecked")
         Map<String, JCheckBox> checkboxes =
                 (Map<String, JCheckBox>) getField(view, "assocCheckboxes");
-        assertTrue(checkboxes.get("RouteRoad").isSelected(), "prefill should have checked RouteRoad");
-        assertTrue(checkboxes.get("AssignedTo").isSelected(), "prefill should have checked AssignedTo");
+        assertTrue(checkboxes.get("Chosen").isSelected(), "prefill should have checked Chosen");
+        assertTrue(checkboxes.get("Marked").isSelected(), "prefill should have checked Marked");
 
         invokeDoSave(view, tmpConfig);
 
@@ -50,28 +50,28 @@ class QuboConfigViewTest {
         QuboConfig saved = QuboConfig.parse(raw);
 
         assertEquals(2, saved.dvEntries.size(), "decision_vars must round-trip, not be dropped: " + raw);
-        boolean hasRouteRoad = saved.dvEntries.stream()
-                .anyMatch(e -> e[1].equals("RouteRoad") && e[2].equals("Route") && e[3].equals("Road"));
-        boolean hasAssignedTo = saved.dvEntries.stream()
-                .anyMatch(e -> e[1].equals("AssignedTo") && e[2].equals("Route") && e[3].equals("Truck"));
-        assertTrue(hasRouteRoad, "expected RouteRoad(Route,Road) entry, got: " + raw);
-        assertTrue(hasAssignedTo, "expected AssignedTo(Route,Truck) entry, got: " + raw);
+        boolean hasChosen = saved.dvEntries.stream()
+                .anyMatch(e -> e[1].equals("Chosen") && e[2].equals("Picker") && e[3].equals("Option"));
+        boolean hasMarked = saved.dvEntries.stream()
+                .anyMatch(e -> e[1].equals("Marked") && e[2].equals("Picker") && e[3].equals("Tag"));
+        assertTrue(hasChosen, "expected Chosen(Picker,Option) entry, got: " + raw);
+        assertTrue(hasMarked, "expected Marked(Picker,Tag) entry, got: " + raw);
     }
 
     @Test
     void maxDegreeSpinner_acceptsDegreeAboveOldSixCap() throws Exception {
-        MSystem system = UseFixtures.buildSystem(UseFixtures.garageTrucksUse(), UseFixtures.garageTrucksCmd());
+        MSystem system = UseFixtures.buildSystem(UseFixtures.selectionUse(), UseFixtures.selectionCmd());
         MModel model = system.model();
 
-        QuboConfigView view = new QuboConfigView(UseFixtures.garageTrucksConfig(), model);
+        QuboConfigView view = new QuboConfigView(UseFixtures.selectionUiConfig(), model);
 
         JSpinner spinner = (JSpinner) getField(view, "maxDegreeSpinner");
-        assertEquals(7, spinner.getValue(), "prefill should load max_degree=7 from GarageTrucks config");
+        assertEquals(9, spinner.getValue(), "prefill should load max_degree=9 from the fixture config");
 
         SpinnerNumberModel spinnerModel = (SpinnerNumberModel) spinner.getModel();
         Object next = spinnerModel.getNextValue();
         assertTrue(next != null, "up-arrow must still offer a next value above the prefilled degree");
-        assertEquals(8, next);
+        assertEquals(10, next);
     }
 
     private static Object getField(Object target, String name) throws Exception {

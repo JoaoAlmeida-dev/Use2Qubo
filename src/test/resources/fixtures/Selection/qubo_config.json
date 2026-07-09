@@ -1,0 +1,15 @@
+{
+  "decision_var_associations": ["Chosen"],
+  "decision_vars": [
+    {
+      "type": "link",
+      "association": "Chosen",
+      "domain": ["Picker", "Option"]
+    }
+  ],
+  "objective": {
+    "expression": "Picker.allInstances->collect(p | p.options->size())->sum()",
+    "minimise": true,
+    "max_degree": 3
+  }
+}
