@@ -8,7 +8,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import javax.swing.BorderFactory;
@@ -113,6 +115,12 @@ public class TryItTabPanel extends JSplitPane {
                 ancillaPanel.add(lbl);
             }
         }
+        // Ancilla count can run into the hundreds (one per quadratization pair); an unbounded
+        // BorderLayout.SOUTH region here would demand its full natural height and squeeze the
+        // decision-variable checkboxes above out of view entirely. Give it its own capped,
+        // independently-scrollable area instead.
+        JScrollPane ancillaScroll = new JScrollPane(ancillaPanel);
+        ancillaScroll.setPreferredSize(new Dimension(0, 160));
 
         evaluateButton = new JButton("Evaluate");
         JPanel evalPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
@@ -144,11 +152,18 @@ public class TryItTabPanel extends JSplitPane {
 
         JPanel leftPanel = new JPanel(new BorderLayout(4, 4));
         leftPanel.add(toolbar, BorderLayout.NORTH);
-        leftPanel.add(new JScrollPane(varsPanel), BorderLayout.CENTER);
+
+        if (result.nAncillaVars > 0) {
+            JSplitPane varsSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
+                    new JScrollPane(varsPanel), ancillaScroll);
+            varsSplit.setResizeWeight(0.7);
+            leftPanel.add(varsSplit, BorderLayout.CENTER);
+        } else {
+            leftPanel.add(new JScrollPane(varsPanel), BorderLayout.CENTER);
+        }
 
         JPanel bottomLeft = new JPanel();
         bottomLeft.setLayout(new BoxLayout(bottomLeft, BoxLayout.Y_AXIS));
-        bottomLeft.add(ancillaPanel);
         bottomLeft.add(evalPanel);
         bottomLeft.add(resultsPanel);
         leftPanel.add(bottomLeft, BorderLayout.SOUTH);
@@ -248,8 +263,20 @@ public class TryItTabPanel extends JSplitPane {
 
     private void updateDiagram(int[] originalX) {
         try {
+            // A decision-var association may be an associationclass (e.g. RouteRoad), whose
+            // instances are themselves objects and so already present in ctx.objectsByClass
+            // (captured from state.allObjects()). Copying those over verbatim and then also
+            // inserting a link for every toggled-on bit below would try to create two link
+            // objects of the same type between the same pair -- USE rejects that outright. The
+            // toggle loop below reconstructs every decision-var link from x from scratch, so
+            // exclude their classes from the plain object copy first.
+            Map<String, List<MObject>> previewObjects = new LinkedHashMap<>(ctx.objectsByClass);
+            for (DecisionVar dv : ctx.decisionVars) {
+                previewObjects.remove(dv.association);
+            }
+
             SandboxSystemFactory.Sandbox sandbox = SandboxSystemFactory.build(
-                    ctx.model, ctx.state, ctx.objectsByClass, false, ctx.fixedLinks);
+                    ctx.model, ctx.state, previewObjects, false, ctx.fixedLinks);
 
             for (int i = 0; i < entries.size(); i++) {
                 if (originalX[i] == 0) continue;
