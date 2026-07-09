@@ -41,6 +41,7 @@ import org.tzi.use.plugin.use2qubo.util.PluginLog;
 import org.tzi.use.plugin.use2qubo.util.QuboConstants;
 import org.tzi.use.plugin.use2qubo.util.SimpleJsonWriter;
 import org.tzi.use.uml.mm.MAssociation;
+import org.tzi.use.uml.mm.MAssociationEnd;
 import org.tzi.use.uml.mm.MModel;
 import org.tzi.use.uml.ocl.expr.Expression;
 import org.tzi.use.uml.ocl.value.VarBindings;
@@ -57,7 +58,7 @@ public class QuboConfigView extends JPanel implements View {
     private final JTextField objectiveField = new JTextField(50);
     private final JCheckBox minimiseBox = new JCheckBox("Minimise", true);
     private final JSpinner maxDegreeSpinner =
-            new JSpinner(new SpinnerNumberModel(QuboConstants.DEFAULT_MAX_POLY_DEGREE, 2, 6, 1));
+            new JSpinner(new SpinnerNumberModel(QuboConstants.DEFAULT_MAX_POLY_DEGREE, 2, null, 1));
     private final Map<String, JCheckBox> assocCheckboxes = new LinkedHashMap<>();
     private final MModel model;
 
@@ -251,7 +252,24 @@ public class QuboConfigView extends JPanel implements View {
         SimpleJsonWriter w = new SimpleJsonWriter();
         w.objectOpen();
         w.linkArray("decision_var_associations", assocNames, true);
-        w.key("decision_vars").arrayOpen().arrayClose(true);
+        w.key("decision_vars").arrayOpen();
+        for (int i = 0; i < assocNames.size(); i++) {
+            String assocName = assocNames.get(i);
+            MAssociation assoc = model.getAssociation(assocName);
+            List<MAssociationEnd> ends = assoc.associationEnds();
+            String classA = ends.get(0).cls().name();
+            String classB = ends.get(1).cls().name();
+
+            w.objectOpen();
+            w.keyValue("type", "link", true);
+            w.keyValue("association", assocName, true);
+            w.key("domain").arrayOpen();
+            w.arrayItem(classA, true);
+            w.arrayItem(classB, false);
+            w.arrayClose(false);
+            w.objectClose(i < assocNames.size() - 1);
+        }
+        w.arrayClose(true);
         w.key("objective").objectOpen();
         w.keyValue("expression", expr, true);
         w.keyValue("minimise", minimise, true);
