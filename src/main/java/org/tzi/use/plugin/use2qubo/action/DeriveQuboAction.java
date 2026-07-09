@@ -119,7 +119,7 @@ public class DeriveQuboAction implements IPluginActionDelegate {
                 try {
                     QuboResult result = get();
                     PluginLog.info("Derive QUBO complete, opening visualiser");
-                    QuboMatrixView view = new QuboMatrixView(result);
+                    QuboMatrixView view = new QuboMatrixView(result, ctx);
                     ViewFrame frame = new ViewFrame("QUBO Matrix — " + result.nVars + " variables", view, null);
                     JComponent frameContent = (JComponent) frame.getContentPane();
                     frameContent.setLayout(new BorderLayout());

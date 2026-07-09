@@ -40,13 +40,16 @@ public class QuboResult {
     public final int nAncillaVars;
     /** Penalty weight applied to each ancilla-consistency term; 0 when no quadratization was needed. */
     public final double quadratizationPenalty;
+    /** For each ancilla k (appended at original-var-count + k), the pair of variable-space indices
+     *  {a,b} it encodes ({@code y_k = x_a AND x_b} at the optimum); empty when nAncillaVars == 0. */
+    public final List<int[]> ancillaPairs;
 
     public QuboResult(int nVars, int nSamples, boolean exact, double constant,
                Map<Integer, Double> linear, Map<String, Double> quadratic,
                List<String> varLabels, double penaltyWeight, long derivationMs,
                List<SampleRecord> costSamples, List<SampleRecord> penaltySamples,
                List<ExactnessPoint> exactnessPoints, int polyDegree, int nAncillaVars,
-               double quadratizationPenalty) {
+               double quadratizationPenalty, List<int[]> ancillaPairs) {
         this.nVars                 = nVars;
         this.nSamples               = nSamples;
         this.exact                  = exact;
@@ -62,6 +65,7 @@ public class QuboResult {
         this.polyDegree              = polyDegree;
         this.nAncillaVars            = nAncillaVars;
         this.quadratizationPenalty   = quadratizationPenalty;
+        this.ancillaPairs            = Collections.unmodifiableList(ancillaPairs);
     }
 
     /** Returns copy of this result with derivationMs set to ms. */
@@ -69,7 +73,7 @@ public class QuboResult {
         return new QuboResult(nVars, nSamples, exact, constant,
                 linear, quadratic, varLabels, penaltyWeight, ms,
                 costSamples, penaltySamples, exactnessPoints, polyDegree, nAncillaVars,
-                quadratizationPenalty);
+                quadratizationPenalty, ancillaPairs);
     }
 
     /** Evaluate the QUBO polynomial q(x) = c + sum_i c_i*x_i + sum_{i<j} c_ij*x_i*x_j. */

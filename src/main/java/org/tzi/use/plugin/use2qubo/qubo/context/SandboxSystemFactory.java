@@ -23,15 +23,15 @@ import java.util.Map;
  * of links. Shared by JAVA-015 (full-fidelity clone to isolate {@code QuboEngine.derive}'s
  * mutations) and JAVA-016 (cheap attribute-free clone for a live preview diagram).
  */
-final class SandboxSystemFactory {
+public final class SandboxSystemFactory {
 
     private SandboxSystemFactory() {}
 
-    static final class Sandbox {
-        final MSystem system;
-        final MSystemState state;
+    public static final class Sandbox {
+        public final MSystem system;
+        public final MSystemState state;
         /** Real object name -> corresponding sandbox MObject. */
-        final Map<String, MObject> byName;
+        public final Map<String, MObject> byName;
 
         Sandbox(MSystem system, MSystemState state, Map<String, MObject> byName) {
             this.system = system;
@@ -40,7 +40,7 @@ final class SandboxSystemFactory {
         }
     }
 
-    static Sandbox build(MModel model, MSystemState source,
+    public static Sandbox build(MModel model, MSystemState source,
                           Map<String, List<MObject>> objectsByClass,
                           boolean copyAttributes,
                           Map<String, List<MLink>> linksToCopy) throws Exception {

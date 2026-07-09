@@ -75,6 +75,52 @@ public class QuboEngine {
 
     private static final EscalationConfirm ALWAYS_PROCEED = (from, to, expected) -> true;
 
+    /** Result of {@link #evaluateTrue}: the true OCL objective/penalty for one binary vector,
+     *  as opposed to the derived QUBO polynomial's approximation of the same quantities. */
+    public static final class TrueEval {
+        /** Objective value, sign already flipped per {@code ctx.minimise}. */
+        public final double cost;
+        /** Raw violated-invariant count (unweighted). */
+        public final double penalty;
+
+        public TrueEval(double cost, double penalty) {
+            this.cost = cost;
+            this.penalty = penalty;
+        }
+
+        public double weighted(double B) {
+            return cost + B * penalty;
+        }
+    }
+
+    /**
+     * Evaluates the true OCL objective and penalty at a user-chosen binary vector over the
+     * original decision variables (no ancillas), for the "Try It" tab's q(x)-vs-f(x) comparison.
+     * Strips any existing decision-var links, inserts exactly those implied by {@code x}, evaluates,
+     * then restores the original links, unwinding via the same sequence used during derivation.
+     *
+     * @param ctx context whose {@code state} is already the derive-time sandbox (JAVA-015 isolation)
+     * @param x   binary vector, length must equal {@code ctx.nVars}
+     */
+    public static TrueEval evaluateTrue(QuboContext ctx, int[] x) throws Exception {
+        if (x.length != ctx.nVars) {
+            throw new IllegalArgumentException(
+                    "Vector length " + x.length + " != ctx.nVars " + ctx.nVars);
+        }
+        List<DVPair> flatVars = buildFlatVars(ctx);
+        Expression objExpr = compileObjective(ctx, null);
+        Evaluator evaluator = new Evaluator();
+
+        Map<String, Set<MLink>> savedLinks = saveAndStripLinks(ctx);
+        try {
+            double cost = evalCost(x, flatVars, ctx, evaluator, objExpr);
+            double penalty = evalPenalty(x, flatVars, ctx, evaluator);
+            return new TrueEval(cost, penalty);
+        } finally {
+            restoreLinks(ctx, savedLinks);
+        }
+    }
+
     /**
      * Derives the QUBO Q-matrix from the given context.
      *
@@ -334,7 +380,8 @@ public class QuboEngine {
                 }
             }
             return new QuboResult(n, nSamples, degreeExact, constant, linearMap, quadMap,
-                    varLabels, B, 0L, costSamples, penaltySamples, exactnessPoints, degree, 0, 0.0);
+                    varLabels, B, 0L, costSamples, penaltySamples, exactnessPoints, degree, 0, 0.0,
+                    Collections.emptyList());
         }
 
         Quadratizer.Result qz = Quadratizer.reduce(n, combined, varLabels);
@@ -365,7 +412,7 @@ public class QuboEngine {
 
         return new QuboResult(totalVars, nSamples, exact, qz.constant, linearMap, quadMap,
                 extendedLabels, B, 0L, costSamples, penaltySamples, exactnessPoints, degree,
-                qz.nAncilla, qz.penaltyWeight);
+                qz.nAncilla, qz.penaltyWeight, qz.ancillaPairs);
     }
 
     /**
