@@ -1,10 +1,12 @@
 package org.tzi.use.plugin.use2qubo.qubo.context;
 
 import org.tzi.use.uml.mm.MAssociation;
+import org.tzi.use.uml.mm.MAssociationClass;
 import org.tzi.use.uml.mm.MAttribute;
 import org.tzi.use.uml.mm.MModel;
 import org.tzi.use.uml.ocl.value.Value;
 import org.tzi.use.uml.sys.MLink;
+import org.tzi.use.uml.sys.MLinkObject;
 import org.tzi.use.uml.sys.MObject;
 import org.tzi.use.uml.sys.MSystem;
 import org.tzi.use.uml.sys.MSystemState;
@@ -46,11 +48,27 @@ final class SandboxSystemFactory {
         MSystemState sandboxState = sandboxSystem.state();
         Map<String, MObject> byName = new LinkedHashMap<>();
 
+        // Plain objects first: link-objects (association-class instances) need their endpoints
+        // to already exist, since createLinkObject takes the linked objects as arguments.
+        List<MLinkObject> linkObjects = new ArrayList<>();
         for (List<MObject> objs : objectsByClass.values()) {
             for (MObject obj : objs) {
+                if (obj instanceof MLinkObject) {
+                    linkObjects.add((MLinkObject) obj);
+                    continue;
+                }
                 MObject sandboxObj = sandboxState.createObject(obj.cls(), obj.name());
                 byName.put(obj.name(), sandboxObj);
             }
+        }
+        for (MLinkObject linkObj : linkObjects) {
+            List<MObject> mapped = new ArrayList<>(linkObj.linkedObjects().size());
+            for (MObject endpoint : linkObj.linkedObjects()) {
+                mapped.add(byName.get(endpoint.name()));
+            }
+            MObject sandboxObj = sandboxState.createLinkObject(
+                    (MAssociationClass) linkObj.cls(), linkObj.name(), mapped, Collections.emptyList());
+            byName.put(linkObj.name(), sandboxObj);
         }
 
         if (copyAttributes) {
@@ -67,7 +85,7 @@ final class SandboxSystemFactory {
 
         for (Map.Entry<String, List<MLink>> e : linksToCopy.entrySet()) {
             MAssociation assoc = model.getAssociation(e.getKey());
-            if (assoc == null) continue;
+            if (assoc == null || assoc instanceof MAssociationClass) continue; // link-objects already created above
             for (MLink link : e.getValue()) {
                 List<MObject> mapped = new ArrayList<>(link.linkedObjects().size());
                 for (MObject endpoint : link.linkedObjects()) {

@@ -6,6 +6,7 @@ import org.tzi.use.plugin.use2qubo.qubo.context.QuboContext;
 import org.tzi.use.plugin.use2qubo.qubo.result.ExactnessPoint;
 import org.tzi.use.plugin.use2qubo.qubo.result.QuboResult;
 import org.tzi.use.plugin.use2qubo.qubo.result.SampleRecord;
+import org.tzi.use.plugin.use2qubo.util.Combinatorics;
 import org.tzi.use.plugin.use2qubo.util.PluginLog;
 import org.tzi.use.plugin.use2qubo.util.QuboConstants;
 import org.tzi.use.uml.mm.MAssociation;
@@ -64,6 +65,16 @@ public class QuboEngine {
 
     private static final double EPS = QuboConstants.EPS;
 
+    /** Asked before sampling escalates to a higher degree, so a caller can let the user
+     *  decide whether the extra sample cost is worth paying. */
+    @FunctionalInterface
+    public interface EscalationConfirm {
+        /** Called before sampling toDegree; expectedSamples counts both cost+penalty passes. */
+        boolean proceed(int fromDegree, int toDegree, long expectedSamples);
+    }
+
+    private static final EscalationConfirm ALWAYS_PROCEED = (from, to, expected) -> true;
+
     /**
      * Derives the QUBO Q-matrix from the given context.
      *
@@ -72,6 +83,20 @@ public class QuboEngine {
      *                 may be {@code null}. Called from the calling thread.
      */
     public static QuboResult derive(QuboContext ctx, Consumer<String> progress) throws Exception {
+        return derive(ctx, progress, ALWAYS_PROCEED);
+    }
+
+    /**
+     * Derives the QUBO Q-matrix from the given context, asking {@code confirm} before each
+     * degree-escalation step.
+     *
+     * @param ctx      QUBO derivation context (model, state, config)
+     * @param progress optional callback that receives human-readable step labels;
+     *                 may be {@code null}. Called from the calling thread.
+     * @param confirm  asked before escalating to a higher degree; declining stops escalation
+     */
+    public static QuboResult derive(QuboContext ctx, Consumer<String> progress,
+                                     EscalationConfirm confirm) throws Exception {
         int n = ctx.nVars;
         PluginLog.info("QuboEngine.derive: nVars=" + n + ", maxDegree=" + ctx.maxDegree);
 
@@ -88,7 +113,7 @@ public class QuboEngine {
         Map<String, Set<MLink>> savedLinks = saveAndStripLinks(ctx);
         try {
             QuboResult result = deriveWithClearedState(ctx, n, flatVars, varLabels,
-                    objExpr, evaluator, progress, savedLinks);
+                    objExpr, evaluator, progress, savedLinks, confirm);
             PluginLog.info("Derive complete: " + result);
             return result;
         } finally {
@@ -100,7 +125,7 @@ public class QuboEngine {
      *  assuming decision-var links are already stripped. */
     private static QuboResult deriveWithClearedState(QuboContext ctx, int n,
             List<DVPair> flatVars, List<String> varLabels, Expression objExpr, Evaluator evaluator,
-            Consumer<String> progress, Map<String, Set<MLink>> savedLinks) throws Exception {
+            Consumer<String> progress, Map<String, Set<MLink>> savedLinks, EscalationConfirm confirm) throws Exception {
 
         int maxDegree = Math.max(2, ctx.maxDegree);
 
@@ -126,6 +151,13 @@ public class QuboEngine {
 
         while (!degreeExact && degree < maxDegree) {
             int nextDegree = degree + 1;
+            long expectedSamples = 2L * Combinatorics.binomial(n, nextDegree);
+            if (!confirm.proceed(degree, nextDegree, expectedSamples)) {
+                PluginLog.info("QuboEngine: user declined escalation to degree " + nextDegree
+                        + "; stopping at degree " + degree);
+                break;
+            }
+
             report(progress, "Exactness failed at degree " + degree + "; escalating to degree " + nextDegree + "…");
             PluginLog.info("QuboEngine: escalating sampling to degree " + nextDegree);
 
@@ -442,7 +474,8 @@ public class QuboEngine {
             MAssociation assoc = ctx.model.getAssociation(dv.association);
             if (assoc == null) continue;
             for (MLink link : new HashSet<>(ctx.state.linksOfAssociation(assoc).links())) {
-                try { ctx.state.deleteLink(link); } catch (Exception e) { /* best effort */ }
+                try { ctx.state.deleteLink(link); }
+                catch (Exception e) { PluginLog.warn("Failed to delete link during state restore: " + link, e); }
             }
         }
     }
