@@ -38,11 +38,11 @@ class SandboxSystemFactoryTest {
 
     @Test
     void build_copiesObjectsByNameAndClass() throws Exception {
-        MSystem system = UseFixtures.buildSystem(UseFixtures.maxCliqueUse(), UseFixtures.maxCliqueCmd());
+        MSystem system = UseFixtures.buildSystem(UseFixtures.selectionUse(), UseFixtures.selectionCmd());
         MModel model = system.model();
         MSystemState state = system.state();
 
-        Map<String, List<MObject>> byClass = objectsByClass(model, state, "Vertex", "Solution");
+        Map<String, List<MObject>> byClass = objectsByClass(model, state, "Option", "Picker");
 
         Sandbox sandbox = SandboxSystemFactory.build(model, state, byClass, false, Collections.emptyMap());
 
@@ -57,65 +57,62 @@ class SandboxSystemFactoryTest {
 
     @Test
     void build_copiesAttributesWhenRequested() throws Exception {
-        MSystem system = UseFixtures.buildSystem(UseFixtures.garageTrucksUse(), UseFixtures.garageTrucksCmd());
+        MSystem system = UseFixtures.buildSystem(UseFixtures.selectionUse(), UseFixtures.selectionCmd());
         MModel model = system.model();
         MSystemState state = system.state();
 
-        Map<String, List<MObject>> byClass = objectsByClass(model, state, "Truck");
-        MObject truck1 = state.objectByName("truck1");
+        Map<String, List<MObject>> byClass = objectsByClass(model, state, "Option");
+        MObject o1 = state.objectByName("o1");
 
         Sandbox sandbox = SandboxSystemFactory.build(model, state, byClass, true, Collections.emptyMap());
 
-        MClass truckCls = model.getClass("Truck");
-        MAttribute fuelRangeAttr = truckCls.attribute("fuelRange", true);
-        MAttribute truckIdAttr = truckCls.attribute("truckId", true);
+        MClass optionCls = model.getClass("Option");
+        MAttribute weightAttr = optionCls.attribute("weight", true);
 
-        MObject sandboxTruck1 = sandbox.byName.get("truck1");
-        Value expectedFuelRange = truck1.state(state).attributeValue(fuelRangeAttr);
-        Value expectedTruckId = truck1.state(state).attributeValue(truckIdAttr);
+        MObject sandboxO1 = sandbox.byName.get("o1");
+        Value expectedWeight = o1.state(state).attributeValue(weightAttr);
 
-        assertEquals(expectedFuelRange, sandboxTruck1.state(sandbox.state).attributeValue(fuelRangeAttr));
-        assertEquals(expectedTruckId, sandboxTruck1.state(sandbox.state).attributeValue(truckIdAttr));
+        assertEquals(expectedWeight, sandboxO1.state(sandbox.state).attributeValue(weightAttr));
     }
 
     @Test
     void build_skipsAttributesWhenNotRequested() throws Exception {
-        MSystem system = UseFixtures.buildSystem(UseFixtures.garageTrucksUse(), UseFixtures.garageTrucksCmd());
+        MSystem system = UseFixtures.buildSystem(UseFixtures.selectionUse(), UseFixtures.selectionCmd());
         MModel model = system.model();
         MSystemState state = system.state();
 
-        Map<String, List<MObject>> byClass = objectsByClass(model, state, "Truck");
+        Map<String, List<MObject>> byClass = objectsByClass(model, state, "Option");
 
         Sandbox sandbox = SandboxSystemFactory.build(model, state, byClass, false, Collections.emptyMap());
 
-        MClass truckCls = model.getClass("Truck");
-        MAttribute fuelRangeAttr = truckCls.attribute("fuelRange", true);
+        MClass optionCls = model.getClass("Option");
+        MAttribute weightAttr = optionCls.attribute("weight", true);
 
-        MObject sandboxTruck1 = sandbox.byName.get("truck1");
-        Value fuelRange = sandboxTruck1.state(sandbox.state).attributeValue(fuelRangeAttr);
-        assertTrue(fuelRange instanceof UndefinedValue, "expected undefined attribute, got " + fuelRange);
+        MObject sandboxO1 = sandbox.byName.get("o1");
+        Value weight = sandboxO1.state(sandbox.state).attributeValue(weightAttr);
+        assertTrue(weight instanceof UndefinedValue, "expected undefined attribute, got " + weight);
     }
 
     @Test
     void build_copiesOnlyGivenLinks() throws Exception {
-        MSystem system = UseFixtures.buildSystem(UseFixtures.garageTrucksUse(), UseFixtures.garageTrucksCmd());
+        MSystem system = UseFixtures.buildSystem(UseFixtures.selectionUse(), UseFixtures.selectionCmd());
         MModel model = system.model();
         MSystemState state = system.state();
 
-        Map<String, List<MObject>> byClass = objectsByClass(model, state, "Route", "Truck");
+        Map<String, List<MObject>> byClass = objectsByClass(model, state, "Picker", "Tag");
 
-        MAssociation assignedTo = model.getAssociation("AssignedTo");
-        List<MLink> assignedToLinks = new ArrayList<>(state.linksOfAssociation(assignedTo).links());
+        MAssociation marked = model.getAssociation("Marked");
+        List<MLink> markedLinks = new ArrayList<>(state.linksOfAssociation(marked).links());
 
         Map<String, List<MLink>> linksToCopy = new LinkedHashMap<>();
-        linksToCopy.put("AssignedTo", assignedToLinks);
+        linksToCopy.put("Marked", markedLinks);
 
         Sandbox sandbox = SandboxSystemFactory.build(model, state, byClass, false, linksToCopy);
 
-        assertEquals(assignedToLinks.size(),
-                sandbox.state.linksOfAssociation(assignedTo).links().size());
+        assertEquals(markedLinks.size(),
+                sandbox.state.linksOfAssociation(marked).links().size());
 
-        MAssociation routeRoad = model.getAssociation("RouteRoad");
-        assertTrue(sandbox.state.linksOfAssociation(routeRoad).links().isEmpty());
+        MAssociation chosen = model.getAssociation("Chosen");
+        assertTrue(sandbox.state.linksOfAssociation(chosen).links().isEmpty());
     }
 }

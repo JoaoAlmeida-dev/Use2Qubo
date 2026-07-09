@@ -1,0 +1,35 @@
+model AllOrNothing
+
+-- ===========================================================
+-- Synthetic fixture for use2qubo's own test suite.
+-- No relation to any example under articles/qmod_2026/examples/ --
+-- deliberately generic so editing the paper's examples can never
+-- affect this model's meaning.
+--
+-- Picker has 4 candidate Options; Chosen(Picker,Option) is the sole
+-- decision-variable association (nVars=4). The invariant below is
+-- true only when ALL 4 are chosen, i.e. its exact multilinear
+-- representation is the single pure top-degree monomial
+-- x1*x2*x3*x4, with every lower-degree coefficient exactly zero.
+-- With max_degree capped at 3 (< n=4) in qubo_config.json, that
+-- top-degree term can never be captured: the derived QUBO is
+-- guaranteed to remain inexact at the cap, deterministically,
+-- regardless of how much sampling escalates.
+-- ===========================================================
+
+class Picker
+end
+
+class Option
+end
+
+association Chosen between
+  Picker[1] role picker
+  Option[*] role options
+end
+
+constraints
+
+context Picker
+  inv allChosen:
+    self.options->size() = 4
