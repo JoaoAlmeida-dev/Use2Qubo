@@ -44,11 +44,22 @@ context Vertex
   inv positiveId:
     self.vertexId > 0
 
-context Solution
-  -- Every pair of selected vertices must be connected by an edge.
-  -- Violation of this invariant is the penalty term in the QUBO.
-  -- Uses role navigation in both directions to treat Edge as undirected.
+context Vertex
+  -- If this vertex is selected, every other selected vertex must be one
+  -- of its neighbours. Uses role navigation in both directions to treat
+  -- Edge as undirected.
+  --
+  -- Deliberately contexted on Vertex (10 instances) rather than Solution
+  -- (1 instance): QuboEngine's penalty phase adds +1.0 per violated
+  -- (invariant, instance) pair, so a Solution-level invariant can only
+  -- ever contribute one flat pass/fail bit for the whole candidate set,
+  -- regardless of how many non-adjacent pairs it actually contains. On
+  -- Vertex, one penalty point accrues per vertex that has a non-adjacent
+  -- selected partner, grading the penalty by violation severity instead
+  -- of a single boolean.
   inv cliqueProperty:
-    self.members->forAll(u | self.members->forAll(v |
-      u <> v implies
-      u.edgeDest->includes(v) or u.edgeSource->includes(v)))
+    Solution.allInstances->forAll(s |
+      s.members->includes(self) implies
+      s.members->forAll(v |
+        v <> self implies
+        (self.edgeDest->includes(v) or self.edgeSource->includes(v))))
