@@ -10,12 +10,14 @@
             class="org.tzi.use.plugin.use2qubo.action.DeriveQuboAction"
             menu="Plugins"
             menuitem="Derive QUBO Matrix"
+            icon="icons/derive_qubo.png"
             tooltip="Derive QUBO Q-matrix coefficients from current system state and export to qubo_matrix.json"/>
     <action id="org.tzi.use.plugin.use2qubo.action.EditQuboConfigAction"
             label="Edit QUBO Config"
             class="org.tzi.use.plugin.use2qubo.action.EditQuboConfigAction"
             menu="Plugins"
             menuitem="Edit QUBO Config"
+            icon="icons/edit_qubo_config.png"
             tooltip="Open form editor for qubo_config.json (objective, decision variables, minimise flag)"/>
   </actions>
 </plugin>

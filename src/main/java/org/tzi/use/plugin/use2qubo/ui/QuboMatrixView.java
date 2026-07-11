@@ -84,6 +84,14 @@ public class QuboMatrixView extends JPanel implements View {
         exactBadge.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
         panel.add(exactBadge);
 
+        int total = result.exactnessTotalCount;
+        double pct = total > 0 ? 100.0 * result.exactnessMatchCount / total : 0.0;
+        JLabel exactnessPctLabel = new JLabel(String.format(
+                "(%s, %.0f%%)", result.exactnessMethod, pct));
+        exactnessPctLabel.setToolTipText(
+                result.exactnessMatchCount + "/" + total + " exact samples");
+        panel.add(exactnessPctLabel);
+
         panel.add(Box.createHorizontalStrut(8));
         panel.add(ViewFormatUtil.makeSwatch(new Color(205, 92, 92), "negative"));
         panel.add(ViewFormatUtil.makeSwatch(new Color(100, 149, 237), "positive"));

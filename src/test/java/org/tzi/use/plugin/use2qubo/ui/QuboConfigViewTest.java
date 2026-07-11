@@ -1,14 +1,5 @@
 package org.tzi.use.plugin.use2qubo.ui;
 
-import org.junit.jupiter.api.Test;
-import org.tzi.use.plugin.use2qubo.qubo.config.QuboConfig;
-import org.tzi.use.plugin.use2qubo.testutil.UseFixtures;
-import org.tzi.use.uml.mm.MModel;
-import org.tzi.use.uml.sys.MSystem;
-
-import javax.swing.JCheckBox;
-import javax.swing.JSpinner;
-import javax.swing.SpinnerNumberModel;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -16,8 +7,17 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Map;
 
+import javax.swing.JCheckBox;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerNumberModel;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
+import org.tzi.use.plugin.use2qubo.qubo.config.QuboConfig;
+import org.tzi.use.plugin.use2qubo.testutil.UseFixtures;
+import org.tzi.use.uml.mm.MModel;
+import org.tzi.use.uml.sys.MSystem;
 
 /**
  * Regression coverage for two bugs found in manual testing: Save silently dropped
@@ -49,10 +49,10 @@ class QuboConfigViewTest {
         String raw = new String(Files.readAllBytes(tmpConfig.toPath()), StandardCharsets.UTF_8);
         QuboConfig saved = QuboConfig.parse(raw);
 
-        assertEquals(2, saved.dvEntries.size(), "decision_vars must round-trip, not be dropped: " + raw);
-        boolean hasChosen = saved.dvEntries.stream()
+        assertEquals(2, saved.decisionVarEntries.size(), "decision_vars must round-trip, not be dropped: " + raw);
+        boolean hasChosen = saved.decisionVarEntries.stream()
                 .anyMatch(e -> e[1].equals("Chosen") && e[2].equals("Picker") && e[3].equals("Option"));
-        boolean hasMarked = saved.dvEntries.stream()
+        boolean hasMarked = saved.decisionVarEntries.stream()
                 .anyMatch(e -> e[1].equals("Marked") && e[2].equals("Picker") && e[3].equals("Tag"));
         assertTrue(hasChosen, "expected Chosen(Picker,Option) entry, got: " + raw);
         assertTrue(hasMarked, "expected Marked(Picker,Tag) entry, got: " + raw);

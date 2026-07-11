@@ -47,10 +47,10 @@ public final class PolySampler {
      * @param existingCoeffs coefficients already known for all degrees below {@code fromDegree};
      *                       carried into the result unchanged and used for inclusion-exclusion subtraction
      * @param samplePrefix   {@code "cost"} or {@code "pen"} — matches historical {@link SampleRecord#phase} naming
-     * @param f              the black-box function to sample (cost or penalty, no OCL access needed here)
+     * @param evaluator      the black-box function to sample (cost or penalty, no OCL access needed here)
      */
     public static Result sample(int n, int fromDegree, int toDegree, Map<VarSet, Double> existingCoeffs,
-            String samplePrefix, Evaluable f, Consumer<String> progress) throws Exception {
+            String samplePrefix, Evaluable evaluator, Consumer<String> progress) throws Exception {
         Map<VarSet, Double> coeffs = new LinkedHashMap<>(existingCoeffs);
         List<SampleRecord> samples = new ArrayList<>();
 
@@ -62,7 +62,7 @@ public final class PolySampler {
                 report(progress, "Sampling: " + samplePrefix + " degree " + m
                         + " (" + count + "/" + terms.size() + ")...");
                 int[] x = J.toVector(n);
-                double raw = f.eval(x);
+                double raw = evaluator.eval(x);
 
                 double sub = 0.0;
                 for (VarSet I : J.properSubsets()) {

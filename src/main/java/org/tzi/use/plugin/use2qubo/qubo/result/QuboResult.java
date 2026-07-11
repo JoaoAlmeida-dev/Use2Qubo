@@ -43,13 +43,22 @@ public class QuboResult {
     /** For each ancilla k (appended at original-var-count + k), the pair of variable-space indices
      *  {a,b} it encodes ({@code y_k = x_a AND x_b} at the optimum); empty when nAncillaVars == 0. */
     public final List<int[]> ancillaPairs;
+    /** How the exactness verdict was certified: {@code "exhaustive"} (every 2^n vector checked,
+     *  a proof) or {@code "sampled"} (a fixed-size random held-out check, not a proof). */
+    public final String exactnessMethod;
+    /** Number of successfully-evaluated exactness-check points where q(x) matched the true f(x). */
+    public final int exactnessMatchCount;
+    /** Number of successfully-evaluated exactness-check points (excludes eval failures); the
+     *  denominator for {@link #exactnessMatchCount}. */
+    public final int exactnessTotalCount;
 
     public QuboResult(int nVars, int nSamples, boolean exact, double constant,
                Map<Integer, Double> linear, Map<String, Double> quadratic,
                List<String> varLabels, double penaltyWeight, long derivationMs,
                List<SampleRecord> costSamples, List<SampleRecord> penaltySamples,
                List<ExactnessPoint> exactnessPoints, int polyDegree, int nAncillaVars,
-               double quadratizationPenalty, List<int[]> ancillaPairs) {
+               double quadratizationPenalty, List<int[]> ancillaPairs,
+               String exactnessMethod, int exactnessMatchCount, int exactnessTotalCount) {
         this.nVars                 = nVars;
         this.nSamples               = nSamples;
         this.exact                  = exact;
@@ -66,6 +75,9 @@ public class QuboResult {
         this.nAncillaVars            = nAncillaVars;
         this.quadratizationPenalty   = quadratizationPenalty;
         this.ancillaPairs            = Collections.unmodifiableList(ancillaPairs);
+        this.exactnessMethod         = exactnessMethod;
+        this.exactnessMatchCount     = exactnessMatchCount;
+        this.exactnessTotalCount     = exactnessTotalCount;
     }
 
     /** Returns copy of this result with derivationMs set to ms. */
@@ -73,7 +85,7 @@ public class QuboResult {
         return new QuboResult(nVars, nSamples, exact, constant,
                 linear, quadratic, varLabels, penaltyWeight, ms,
                 costSamples, penaltySamples, exactnessPoints, polyDegree, nAncillaVars,
-                quadratizationPenalty, ancillaPairs);
+                quadratizationPenalty, ancillaPairs, exactnessMethod, exactnessMatchCount, exactnessTotalCount);
     }
 
     /** Evaluate the QUBO polynomial q(x) = c + sum_i c_i*x_i + sum_{i<j} c_ij*x_i*x_j. */
@@ -96,9 +108,9 @@ public class QuboResult {
         return String.format("QuboResult{nVars=%d, nSamples=%d, exact=%b, "
                 + "constant=%.4f, |linear|=%d, |quadratic|=%d, "
                 + "|costSamples|=%d, |penaltySamples|=%d, |exactnessPoints|=%d, "
-                + "polyDegree=%d, nAncillaVars=%d}",
+                + "polyDegree=%d, nAncillaVars=%d, exactnessMethod=%s, exactnessMatch=%d/%d}",
                 nVars, nSamples, exact, constant, linear.size(), quadratic.size(),
                 costSamples.size(), penaltySamples.size(), exactnessPoints.size(),
-                polyDegree, nAncillaVars);
+                polyDegree, nAncillaVars, exactnessMethod, exactnessMatchCount, exactnessTotalCount);
     }
 }
