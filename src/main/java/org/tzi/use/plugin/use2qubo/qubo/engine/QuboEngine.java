@@ -192,8 +192,8 @@ public class QuboEngine {
 
         restoreLinks(ctx, savedLinks);
         report(progress, "Running exactness check (degree " + degree + ")…");
-        List<ExactnessPoint> exactnessPoints = checkExactness(n, combined, flatVars, ctx, evaluator, objExpr, B, savedLinks);
-        boolean degreeExact = logExactnessOutcome(exactnessPoints, degree);
+        ExactnessOutcome exactnessOutcome = checkExactness(n, combined, flatVars, ctx, evaluator, objExpr, B, savedLinks, progress);
+        boolean degreeExact = logExactnessOutcome(exactnessOutcome, degree);
 
         while (!degreeExact && degree < maxDegree) {
             int nextDegree = degree + 1;
@@ -228,13 +228,13 @@ public class QuboEngine {
 
             restoreLinks(ctx, savedLinks);
             report(progress, "Running exactness check (degree " + degree + ")…");
-            exactnessPoints = checkExactness(n, combined, flatVars, ctx, evaluator, objExpr, B, savedLinks);
-            degreeExact = logExactnessOutcome(exactnessPoints, degree);
+            exactnessOutcome = checkExactness(n, combined, flatVars, ctx, evaluator, objExpr, B, savedLinks, progress);
+            degreeExact = logExactnessOutcome(exactnessOutcome, degree);
         }
 
         int nSamples = cost.samples.size() + penalty.samples.size();
         return buildResult(n, nSamples, combined, varLabels, B,
-                cost.samples, penalty.samples, exactnessPoints, degreeExact, degree);
+                cost.samples, penalty.samples, exactnessOutcome, degreeExact, degree);
     }
 
     private static List<String> buildVarLabels(List<DVPair> flatVars) {
@@ -271,21 +271,21 @@ public class QuboEngine {
         return savedLinks;
     }
 
-    private static boolean logExactnessOutcome(List<ExactnessPoint> exactnessPoints, int degree) {
-        boolean exact = exactnessPoints.stream()
-                .noneMatch(p -> p.evalFailed || p.error() >= EPS);
-        if (!exact) {
+    private static boolean logExactnessOutcome(ExactnessOutcome outcome, int degree) {
+        if (!outcome.exact) {
             PluginLog.warn("QuboEngine: exactness check FAILED at degree " + degree
-                + " — q(x) ≠ f(x) on held-out points. "
+                + " (" + outcome.method + ", " + outcome.matchCount + "/" + outcome.totalCount + " matched)"
+                + " — q(x) ≠ f(x). "
                 + "Common causes: "
                 + "(1) An OCL invariant uses a boolean pass/fail condition — "
                 + "reformulate by counting violations (integer sum) instead of returning true/false. "
                 + "(2) The objective/penalty involves interactions between more decision variables "
                 + "than the current degree cap allows — raise max_degree.");
         } else {
-            PluginLog.info("Exactness check: PASS at degree " + degree);
+            PluginLog.info("Exactness check: PASS at degree " + degree
+                + " (" + outcome.method + ", " + outcome.matchCount + "/" + outcome.totalCount + " matched)");
         }
-        return exact;
+        return outcome.exact;
     }
 
     private static void report(Consumer<String> cb, String msg) {
@@ -363,9 +363,10 @@ public class QuboEngine {
     /** Trims near-zero coefficients (per EPS), quadratizes if needed, and assembles the final QuboResult. */
     private static QuboResult buildResult(int n, int nSamples, Map<VarSet, Double> combined,
             List<String> varLabels, double B, List<SampleRecord> costSamples, List<SampleRecord> penaltySamples,
-            List<ExactnessPoint> exactnessPoints, boolean degreeExact, int degree) {
+            ExactnessOutcome exactnessOutcome, boolean degreeExact, int degree) {
 
         double constant = combined.getOrDefault(VarSet.EMPTY, 0.0);
+        List<ExactnessPoint> exactnessPoints = exactnessOutcome.points;
 
         if (degree <= 2) {
             Map<Integer, Double> linearMap = new LinkedHashMap<>();
@@ -381,7 +382,8 @@ public class QuboEngine {
             }
             return new QuboResult(n, nSamples, degreeExact, constant, linearMap, quadMap,
                     varLabels, B, 0L, costSamples, penaltySamples, exactnessPoints, degree, 0, 0.0,
-                    Collections.emptyList());
+                    Collections.emptyList(), exactnessOutcome.method, exactnessOutcome.matchCount,
+                    exactnessOutcome.totalCount);
         }
 
         Quadratizer.Result qz = Quadratizer.reduce(n, combined, varLabels);
@@ -412,14 +414,16 @@ public class QuboEngine {
 
         return new QuboResult(totalVars, nSamples, exact, qz.constant, linearMap, quadMap,
                 extendedLabels, B, 0L, costSamples, penaltySamples, exactnessPoints, degree,
-                qz.nAncilla, qz.penaltyWeight, qz.ancillaPairs);
+                qz.nAncilla, qz.penaltyWeight, qz.ancillaPairs, exactnessOutcome.method,
+                exactnessOutcome.matchCount, exactnessOutcome.totalCount);
     }
 
     /**
-     * Confirms the quadratized QUBO reproduces the true f(x) on the same held-out points already
-     * used for degree-K exactness, by setting each ancilla bit to the exact product it encodes
-     * (Rosenberg's substitution guarantees the minimum over the ancilla reaches this value, so no
-     * actual minimisation is needed to check it).
+     * Confirms the quadratized QUBO reproduces the true f(x) on the same held-out/exhaustive points
+     * already collected for degree-K exactness, by setting each ancilla bit to the exact product it
+     * encodes (Rosenberg's substitution guarantees the minimum over the ancilla reaches this value,
+     * so no actual minimisation is needed to check it). Only re-verifies the (possibly truncated)
+     * stored diagnostic points, not the full exhaustive sweep.
      */
     private static boolean verifyQuadratization(Quadratizer.Result qz, int n, List<ExactnessPoint> exactnessPoints) {
         if (qz.nAncilla == 0) return true;
@@ -456,19 +460,105 @@ public class QuboEngine {
 
     // -------------------------------------------------------------------------
 
+    /** Outcome of {@link #checkExactness}: whether q(x) matches the true f(x), how it was checked
+     *  (exhaustive proof over every {@code 2^n} vector, or a random held-out sample), how many of
+     *  the successfully-evaluated points matched, and a (possibly truncated, for display) subset
+     *  of the actual points for the UI/export diagnostics table. */
+    private static final class ExactnessOutcome {
+        final List<ExactnessPoint> points;
+        final String method;
+        final int matchCount;
+        final int totalCount;
+        final boolean exact;
+
+        ExactnessOutcome(List<ExactnessPoint> points, String method, int matchCount, int totalCount, boolean exact) {
+            this.points = points;
+            this.method = method;
+            this.matchCount = matchCount;
+            this.totalCount = totalCount;
+            this.exact = exact;
+        }
+    }
+
     /**
-     * Evaluates the derived polynomial q(x) against the true f(x) on up to
-     * {@link QuboConstants#EXACTNESS_SAMPLE_COUNT} random held-out binary vectors
-     * (Hamming weight ≥ {@link QuboConstants#EXACTNESS_MIN_HAMMING_WEIGHT}) and
-     * returns all evaluation points for diagnostic display. Does not short-circuit
-     * on mismatch — all points are collected so the full error table is available
-     * to the user.
+     * Evaluates the derived polynomial q(x) against the true f(x) to certify exactness.
+     * When {@code n <= QuboConstants.EXACTNESS_EXHAUSTIVE_MAX_N}, every one of the {@code 2^n}
+     * binary vectors is checked — a proof, not a spot-check. Otherwise falls back to
+     * {@link QuboConstants#EXACTNESS_SAMPLE_COUNT} random held-out vectors (Hamming weight
+     * ≥ {@link QuboConstants#EXACTNESS_MIN_HAMMING_WEIGHT}), which is necessary but not
+     * sufficient: a pass only means no mismatch was found among the points actually checked.
+     */
+    private static ExactnessOutcome checkExactness(int n, Map<VarSet, Double> combined,
+            List<DVPair> flatVars, QuboContext ctx, Evaluator evaluator, Expression objExpr, double B,
+            Map<String, Set<MLink>> savedLinks, Consumer<String> progress) throws Exception {
+        if (n <= QuboConstants.EXACTNESS_EXHAUSTIVE_MAX_N) {
+            return checkExactnessExhaustive(n, combined, flatVars, ctx, evaluator, objExpr, B, savedLinks, progress);
+        }
+        return checkExactnessSampled(n, combined, flatVars, ctx, evaluator, objExpr, B, savedLinks);
+    }
+
+    /** Exhaustive branch: enumerates every {@code 2^n} vector, proving exactness rather than sampling it. */
+    private static ExactnessOutcome checkExactnessExhaustive(int n, Map<VarSet, Double> combined,
+            List<DVPair> flatVars, QuboContext ctx, Evaluator evaluator, Expression objExpr, double B,
+            Map<String, Set<MLink>> savedLinks, Consumer<String> progress) throws Exception {
+        stripDecisionLinks(ctx);
+
+        long total = 1L << n;
+        long reportEvery = Math.max(1L, total / 50L);
+        int matchCount = 0;
+        int evalFailedCount = 0;
+        List<ExactnessPoint> mismatches = new ArrayList<>();
+        List<ExactnessPoint> matchesSample = new ArrayList<>();
+        try {
+            for (long i = 0; i < total; i++) {
+                if (i % reportEvery == 0) {
+                    report(progress, "Exhaustive exactness check: " + i + "/" + total + "…");
+                }
+                int[] x = new int[n];
+                for (int b = 0; b < n; b++) x[b] = (int) ((i >> b) & 1);
+                double qx = evalPoly(combined, x);
+                try {
+                    double fx = evalCost(x, flatVars, ctx, evaluator, objExpr)
+                              + B * evalPenalty(x, flatVars, ctx, evaluator);
+                    if (Math.abs(qx - fx) < EPS) {
+                        matchCount++;
+                        if (matchesSample.size() < QuboConstants.EXACTNESS_SAMPLE_COUNT) {
+                            matchesSample.add(new ExactnessPoint(x, fx, qx));
+                        }
+                    } else if (mismatches.size() < QuboConstants.EXACTNESS_SAMPLE_COUNT) {
+                        mismatches.add(new ExactnessPoint(x, fx, qx));
+                    }
+                } catch (Exception e) {
+                    evalFailedCount++;
+                    if (mismatches.size() < QuboConstants.EXACTNESS_SAMPLE_COUNT) {
+                        mismatches.add(new ExactnessPoint(x));
+                    }
+                }
+            }
+        } finally {
+            restoreLinks(ctx, savedLinks);
+        }
+
+        int totalCount = (int) total - evalFailedCount;
+        boolean exact = evalFailedCount == 0 && matchCount == totalCount && totalCount > 0;
+        List<ExactnessPoint> points = !mismatches.isEmpty() ? mismatches : matchesSample;
+        PluginLog.info("Exactness check (exhaustive): " + matchCount + "/" + totalCount
+                + " matched over all " + total + " vectors (n=" + n + ")"
+                + (evalFailedCount > 0 ? ", " + evalFailedCount + " eval failures" : ""));
+        return new ExactnessOutcome(Collections.unmodifiableList(points), "exhaustive", matchCount, totalCount, exact);
+    }
+
+    /**
+     * Sampled branch (used when {@code n} exceeds the exhaustive threshold): evaluates q(x) against
+     * the true f(x) on up to {@link QuboConstants#EXACTNESS_SAMPLE_COUNT} random held-out binary
+     * vectors and returns all evaluation points for diagnostic display. Does not short-circuit on
+     * mismatch — all points are collected so the full error table is available to the user.
      *
      * <p>For small n where fewer than {@link QuboConstants#EXACTNESS_SAMPLE_COUNT}
      * distinct qualifying vectors exist, the method stops after the retry budget
      * is exhausted and returns however many points were collected.
      */
-    private static List<ExactnessPoint> checkExactness(int n, Map<VarSet, Double> combined,
+    private static ExactnessOutcome checkExactnessSampled(int n, Map<VarSet, Double> combined,
             List<DVPair> flatVars, QuboContext ctx, Evaluator evaluator, Expression objExpr, double B,
             Map<String, Set<MLink>> savedLinks) {
         stripDecisionLinks(ctx);
@@ -509,7 +599,16 @@ public class QuboEngine {
         } finally {
             restoreLinks(ctx, savedLinks);
         }
-        return Collections.unmodifiableList(points);
+
+        int evalFailedCount = 0;
+        int matchCount = 0;
+        for (ExactnessPoint p : points) {
+            if (p.evalFailed) evalFailedCount++;
+            else if (p.error() < EPS) matchCount++;
+        }
+        int totalCount = points.size() - evalFailedCount;
+        boolean exact = points.stream().noneMatch(p -> p.evalFailed || p.error() >= EPS);
+        return new ExactnessOutcome(Collections.unmodifiableList(points), "sampled", matchCount, totalCount, exact);
     }
 
     /**

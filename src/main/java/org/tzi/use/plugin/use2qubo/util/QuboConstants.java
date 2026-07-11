@@ -22,6 +22,13 @@ public final class QuboConstants {
     /** Held-out vectors need at least this many 1-bits (lower weights are training samples, exact by construction). */
     public static final int EXACTNESS_MIN_HAMMING_WEIGHT = 3;
 
+    /** When the decision-variable count is at most this, the exactness check enumerates every
+     *  {@code 2^n} binary vector instead of a random held-out sample, turning the check from a
+     *  statistical spot-check into a proof. 20 -> at most ~1.05M evaluations, seconds at the
+     *  observed per-evaluation OCL cost; above this the random-sample check (below) is used
+     *  since exhaustive enumeration becomes impractical. */
+    public static final int EXACTNESS_EXHAUSTIVE_MAX_N = 20;
+
     /** Floor on the retry budget when searching for qualifying held-out vectors. */
     public static final int EXACTNESS_MIN_ATTEMPTS = 200;
 

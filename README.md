@@ -101,8 +101,7 @@ src/main/java/org/tzi/use/plugin/use2qubo/
 │   ├── QuboConfigView.java          — form editor for qubo_config.json in dockable internal window
 │   └── QuboGraphPanel.java          — QUBO expression graph visualiser panel (JAVA-010)
 └── util/
-    ├── PluginLog.java               — wires logging to USE log panel (info/warn/error/debug)
-    └── SimpleJsonWriter.java        — minimal JSON serialiser (no external deps)
+    └── PluginLog.java               — wires logging to USE log panel (info/warn/error/debug)
 ```
 
 ## CLI

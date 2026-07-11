@@ -7,8 +7,10 @@ import java.awt.Font;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionAdapter;
 import java.util.List;
+import java.util.Locale;
 
 import javax.swing.BorderFactory;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
@@ -102,7 +104,22 @@ public class ExactnessTabPanel extends JPanel {
         table.getTableHeader().setFont(table.getTableHeader().getFont().deriveFont(Font.BOLD));
 
         setBorder(BorderFactory.createTitledBorder("Exactness check ("
-                + points.size() + " held-out vectors)"));
+                + points.size() + " " + result.exactnessMethod + " points shown)"));
+
+        JLabel summary = new JLabel(buildSummaryText(result));
+        summary.setFont(summary.getFont().deriveFont(Font.BOLD));
+        summary.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+        summary.setToolTipText(result.exactnessMatchCount + "/" + result.exactnessTotalCount + " exact samples");
+
+        add(summary, BorderLayout.NORTH);
         add(new JScrollPane(table), BorderLayout.CENTER);
+    }
+
+    /** e.g. "exhaustive verification: 100% (261/261)" or "sampled verification: 77% (154/200)". */
+    private static String buildSummaryText(QuboResult result) {
+        int total = result.exactnessTotalCount;
+        double pct = total > 0 ? 100.0 * result.exactnessMatchCount / total : 0.0;
+        return String.format(Locale.ROOT, "%s verification: %.0f%% (%d/%d)",
+                result.exactnessMethod, pct, result.exactnessMatchCount, total);
     }
 }

@@ -47,7 +47,7 @@ public class QuboContextBuilder {
         PluginLog.info("Loading qubo_config.json from: " + configPath);
         String raw = new String(Files.readAllBytes(configPath), StandardCharsets.UTF_8);
         QuboConfig config = QuboConfig.parse(raw);
-        PluginLog.info("Config parsed: " + config.dvEntries.size()
+        PluginLog.info("Config parsed: " + config.decisionVarEntries.size()
                 + " decision-var entries, objective minimise=" + config.minimise);
 
         MModel model = system.model();
@@ -117,7 +117,7 @@ public class QuboContextBuilder {
     private static List<DecisionVar> buildDecisionVars(QuboConfig config,
                                                         Map<String, List<MObject>> objectsByClass) {
         List<DecisionVar> result = new ArrayList<>();
-        for (String[] entry : config.dvEntries) {
+        for (String[] entry : config.decisionVarEntries) {
             String type    = entry[0];
             String assoc   = entry[1];
             String classA  = entry[2];

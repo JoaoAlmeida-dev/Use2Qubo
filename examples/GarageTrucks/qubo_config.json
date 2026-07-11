@@ -1,20 +1,29 @@
 {
-  "decision_var_associations": ["RouteRoad", "AssignedTo"],
+  "decision_var_associations": [
+    "AssignedTo",
+    "RouteRoad"
+  ],
   "decision_vars": [
-    {
-      "type": "link",
-      "association": "RouteRoad",
-      "domain": ["Route", "Road"]
-    },
-    {
+{
       "type": "link",
       "association": "AssignedTo",
-      "domain": ["Route", "Truck"]
+      "domain": [
+        "Route",
+        "Truck"
+      ]
+    },
+{
+      "type": "link",
+      "association": "RouteRoad",
+      "domain": [
+        "Route",
+        "Road"
+      ]
     }
   ],
   "objective": {
     "expression": "Route.allInstances->collect(r | r.edgeCost())->sum()",
     "minimise": true,
-    "max_degree": 7
+    "max_degree": 15
   }
 }

@@ -31,11 +31,11 @@ class QuboConfigTest {
         assertTrue(config.decisionVarAssocs.contains("RouteStop"));
         assertTrue(config.decisionVarAssocs.contains("AssignedTo"));
 
-        assertEquals(2, config.dvEntries.size());
-        assertEquals("link", config.dvEntries.get(0)[0]);
-        assertEquals("RouteStop", config.dvEntries.get(0)[1]);
-        assertEquals("Route", config.dvEntries.get(0)[2]);
-        assertEquals("Node", config.dvEntries.get(0)[3]);
+        assertEquals(2, config.decisionVarEntries.size());
+        assertEquals("link", config.decisionVarEntries.get(0)[0]);
+        assertEquals("RouteStop", config.decisionVarEntries.get(0)[1]);
+        assertEquals("Route", config.decisionVarEntries.get(0)[2]);
+        assertEquals("Node", config.decisionVarEntries.get(0)[3]);
 
         assertEquals("Route.allInstances->collect(r | r.cost)->sum()", config.objectiveExpr);
         assertTrue(config.minimise);
@@ -49,7 +49,7 @@ class QuboConfigTest {
                 "{ \"objective\": { \"expression\": \"1\", \"minimise\": true } }");
 
         assertTrue(config.decisionVarAssocs.isEmpty());
-        assertTrue(config.dvEntries.isEmpty());
+        assertTrue(config.decisionVarEntries.isEmpty());
         assertFalse(config.isDecisionVar("Anything"));
     }
 
@@ -75,9 +75,9 @@ class QuboConfigTest {
         QuboConfig config = QuboConfig.parse(
                 "{ \"decision_vars\": [ {\"type\": \"link\", \"association\": \"A\"} ] }");
 
-        assertEquals(1, config.dvEntries.size());
-        assertEquals("", config.dvEntries.get(0)[2]);
-        assertEquals("", config.dvEntries.get(0)[3]);
+        assertEquals(1, config.decisionVarEntries.size());
+        assertEquals("", config.decisionVarEntries.get(0)[2]);
+        assertEquals("", config.decisionVarEntries.get(0)[3]);
     }
 
     @Test
