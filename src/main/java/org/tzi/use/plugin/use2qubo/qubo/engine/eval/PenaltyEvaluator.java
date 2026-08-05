@@ -16,6 +16,7 @@ import org.tzi.use.uml.sys.MSystemState;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -32,9 +33,18 @@ public final class PenaltyEvaluator {
     /** Flattens ctx.invariants x ctx.objectsByClass into a fixed task list, built once per
      *  derivation (ctx doesn't change across samples) rather than rebuilt on every evalPenalty call. */
     public static List<PenaltyTask> buildPenaltyTasks(QuboContext ctx) {
+        return buildPenaltyTasks(ctx.invariants, ctx.objectsByClass);
+    }
+
+    /** Same flattening, taking the invariants/objects explicitly so a {@code SandboxWorker} can
+     *  build its own task list against its sandbox's remapped {@code MObject}s instead of the
+     *  live ctx's — {@code MClassInvariant} is a model-level construct (safe to share across the
+     *  live system and every sandbox clone), only the per-object task binding must be sandbox-local. */
+    public static List<PenaltyTask> buildPenaltyTasks(List<MClassInvariant> invariants,
+                                                        Map<String, List<MObject>> objectsByClass) {
         List<PenaltyTask> tasks = new ArrayList<>();
-        for (MClassInvariant inv : ctx.invariants) {
-            List<MObject> objs = ctx.objectsByClass.getOrDefault(inv.cls().name(), Collections.emptyList());
+        for (MClassInvariant inv : invariants) {
+            List<MObject> objs = objectsByClass.getOrDefault(inv.cls().name(), Collections.emptyList());
             for (MObject obj : objs) {
                 tasks.add(new PenaltyTask(inv.bodyExpression(), obj));
             }

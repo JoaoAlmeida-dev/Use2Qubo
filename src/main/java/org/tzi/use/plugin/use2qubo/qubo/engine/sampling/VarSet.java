@@ -1,5 +1,7 @@
 package org.tzi.use.plugin.use2qubo.qubo.engine.sampling;
 
+import org.tzi.use.plugin.use2qubo.util.Combinatorics;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -88,9 +90,60 @@ public final class VarSet {
     public static Iterable<VarSet> combinations(int n, int m) {
         if (m < 0 || m > n) return Collections.emptyList();
         if (m == 0) return List.of(EMPTY);
-        return () -> new Iterator<VarSet>() {
-            private final int[] combo = initCombo(m);
-            private boolean hasNext = true;
+        return () -> boundedIterator(n, m, initCombo(m), Long.MAX_VALUE);
+    }
+
+    /**
+     * Enumerates exactly {@code count} {@code m}-subsets starting at lexicographic rank
+     * {@code startRank} (0-indexed, same order as {@link #combinations}), lazily — same O(1)
+     * per-step memory as {@link #combinations}, just seeded at an arbitrary offset instead of
+     * always starting from rank 0. Lets {@code SandboxWorkerPool} hand each worker a contiguous
+     * rank range to process without ever materialising the full {@code C(n,m)} combination list
+     * (which, for large n, is exactly the out-of-memory failure mode the lazy {@link #combinations}
+     * iterator was originally written to avoid — chunking naively via a {@code List<VarSet>} would
+     * reintroduce it).
+     */
+    public static Iterable<VarSet> combinationsRange(int n, int m, long startRank, long count) {
+        if (m < 0 || m > n || count <= 0) return Collections.emptyList();
+        if (m == 0) return startRank == 0 ? List.of(EMPTY) : Collections.emptyList();
+        int[] startCombo = unrank(n, m, startRank);
+        return () -> boundedIterator(n, m, startCombo, count);
+    }
+
+    /**
+     * The {@code m}-subset of {@code {0, ..., n-1}} at 0-indexed lexicographic rank {@code rank}
+     * (same order as {@link #combinations}). Standard combinatorial unranking: at each position,
+     * try the smallest not-yet-excluded candidate and skip past it (subtracting the number of
+     * combinations it would account for) until the remaining rank falls within its share.
+     */
+    static int[] unrank(int n, int m, long rank) {
+        int[] combo = new int[m];
+        int x = 0;
+        long remaining = rank;
+        for (int i = 0; i < m; i++) {
+            int c = x;
+            while (true) {
+                long countWithThisChoice = Combinatorics.binomial(n - c - 1, m - i - 1);
+                if (remaining < countWithThisChoice) {
+                    combo[i] = c;
+                    x = c + 1;
+                    break;
+                }
+                remaining -= countWithThisChoice;
+                c++;
+            }
+        }
+        return combo;
+    }
+
+    /** Shared stepping logic behind {@link #combinations} and {@link #combinationsRange}: walks
+     *  forward from {@code startCombo} (which the caller owns — mutated in place), yielding at
+     *  most {@code limit} terms or until lexicographic exhaustion, whichever comes first. */
+    private static Iterator<VarSet> boundedIterator(int n, int m, int[] startCombo, long limit) {
+        return new Iterator<VarSet>() {
+            private final int[] combo = startCombo;
+            private long remaining = limit;
+            private boolean hasNext = remaining > 0;
 
             @Override
             public boolean hasNext() {
@@ -101,7 +154,8 @@ public final class VarSet {
             public VarSet next() {
                 if (!hasNext) throw new NoSuchElementException();
                 VarSet result = VarSet.of(combo.clone());
-                advance();
+                remaining--;
+                if (remaining > 0) advance(); else hasNext = false;
                 return result;
             }
 

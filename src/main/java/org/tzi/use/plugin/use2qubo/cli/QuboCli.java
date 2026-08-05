@@ -82,7 +82,8 @@ public final class QuboCli {
                 msg -> PluginLog.debug("[use2qubo-cli] " + msg),
                 bar,
                 (from, to, expected) -> true,
-                false); // headless export never reads costSamples/penaltySamples — don't retain them
+                false, // headless export never reads costSamples/penaltySamples — don't retain them
+                parsed.workers);
         long ms = (System.nanoTime() - t0) / 1_000_000;
         result = result.withDerivationMs(ms);
 
@@ -155,7 +156,7 @@ public final class QuboCli {
 
     private static String usage() {
         return "usage: use2qubo-cli --model <model.use> --cmd <script.cmd> "
-                + "[--config <qubo_config.json>] [--out <qubo.json>]";
+                + "[--config <qubo_config.json>] [--out <qubo.json>] [--workers <N>]";
     }
 
     static final class Args {
@@ -163,6 +164,9 @@ public final class QuboCli {
         String cmd;
         String config;
         String out;
+        /** Explicit SandboxWorkerPool worker count; null falls back to the pool's own
+         *  min(availableProcessors(), MAX_SAMPLE_WORKERS) sizing. */
+        Integer workers;
 
         static Args parse(String[] args) {
             Args a = new Args();
@@ -176,6 +180,14 @@ public final class QuboCli {
                     a.config = value(args, ++i, arg);
                 } else if (arg.equals("--out")) {
                     a.out = value(args, ++i, arg);
+                } else if (arg.equals("--workers")) {
+                    String raw = value(args, ++i, arg);
+                    try {
+                        a.workers = Integer.valueOf(raw);
+                    } catch (NumberFormatException e) {
+                        throw new UsageException("--workers must be an integer, got: " + raw);
+                    }
+                    if (a.workers < 1) throw new UsageException("--workers must be >= 1, got: " + a.workers);
                 } else {
                     throw new UsageException("Unknown argument: " + arg);
                 }

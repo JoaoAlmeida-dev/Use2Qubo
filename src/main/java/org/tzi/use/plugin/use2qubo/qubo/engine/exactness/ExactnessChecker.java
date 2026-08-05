@@ -7,6 +7,7 @@ import org.tzi.use.plugin.use2qubo.qubo.engine.eval.ObjectiveEvaluator;
 import org.tzi.use.plugin.use2qubo.qubo.engine.eval.PenaltyEvaluator;
 import org.tzi.use.plugin.use2qubo.qubo.engine.index.DVPair;
 import org.tzi.use.plugin.use2qubo.qubo.engine.sampling.PolyMath;
+import org.tzi.use.plugin.use2qubo.qubo.engine.sampling.SandboxWorkerPool;
 import org.tzi.use.plugin.use2qubo.qubo.engine.sampling.VarSet;
 import org.tzi.use.plugin.use2qubo.qubo.result.ExactnessPoint;
 import org.tzi.use.plugin.use2qubo.util.PluginLog;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -57,63 +59,62 @@ public final class ExactnessChecker {
     public static ExactnessOutcome checkExactness(int n, Map<VarSet, Double> combined,
             List<DVPair> flatVars, QuboContext ctx, Evaluator evaluator, List<PenaltyEvaluator.PenaltyTask> penaltyTasks,
             Expression objExpr, double B,
-            Map<String, Set<MLink>> savedLinks, Consumer<String> progress) throws Exception {
+            Map<String, Set<MLink>> savedLinks, Consumer<String> progress, SandboxWorkerPool pool) throws Exception {
         if (n <= QuboConstants.EXACTNESS_EXHAUSTIVE_MAX_N) {
-            return checkExactnessExhaustive(n, combined, flatVars, ctx, evaluator, penaltyTasks, objExpr, B, savedLinks, progress);
+            return checkExactnessExhaustive(n, combined, pool, B, progress);
         }
         return checkExactnessSampled(n, combined, flatVars, ctx, evaluator, penaltyTasks, objExpr, B, savedLinks);
     }
 
-    /** Exhaustive branch: enumerates every {@code 2^n} vector, proving exactness rather than sampling it. */
+    /**
+     * Exhaustive branch: enumerates every {@code 2^n} vector, proving exactness rather than
+     * sampling it. Runs against the {@link SandboxWorkerPool}'s own per-thread sandbox clones
+     * rather than the live {@code ctx} — unlike the pre-parallelization version, this never
+     * touches {@code ctx.state}, so no strip/restore of decision links around it is needed here.
+     */
     public static ExactnessOutcome checkExactnessExhaustive(int n, Map<VarSet, Double> combined,
-            List<DVPair> flatVars, QuboContext ctx, Evaluator evaluator, List<PenaltyEvaluator.PenaltyTask> penaltyTasks,
-            Expression objExpr, double B,
-            Map<String, Set<MLink>> savedLinks, Consumer<String> progress) throws Exception {
-        DecisionLinkSampler.stripDecisionLinks(ctx);
-
+            SandboxWorkerPool pool, double B, Consumer<String> progress) throws Exception {
         long total = 1L << n;
-        long reportEvery = Math.max(1L, total / 50L);
-        int matchCount = 0;
-        int evalFailedCount = 0;
+        AtomicInteger matchCount = new AtomicInteger(0);
+        AtomicInteger evalFailedCount = new AtomicInteger(0);
         List<ExactnessPoint> mismatches = new ArrayList<>();
         List<ExactnessPoint> matchesSample = new ArrayList<>();
-        try {
-            for (long i = 0; i < total; i++) {
-                if (i % reportEvery == 0) {
-                    ProgressEvent.report(progress, "Exhaustive exactness check: " + i + "/" + total + "…");
-                }
-                int[] x = new int[n];
-                for (int b = 0; b < n; b++) x[b] = (int) ((i >> b) & 1);
-                double qx = PolyMath.evalPoly(combined, x);
-                try {
-                    double fx = ObjectiveEvaluator.evalCost(x, flatVars, ctx, evaluator, objExpr)
-                              + B * PenaltyEvaluator.evalPenalty(x, flatVars, ctx, penaltyTasks);
-                    if (Math.abs(qx - fx) < EPS) {
-                        matchCount++;
-                        if (matchesSample.size() < QuboConstants.EXACTNESS_SAMPLE_COUNT) {
-                            matchesSample.add(new ExactnessPoint(x, fx, qx));
-                        }
-                    } else if (mismatches.size() < QuboConstants.EXACTNESS_SAMPLE_COUNT) {
-                        mismatches.add(new ExactnessPoint(x, fx, qx));
-                    }
-                } catch (Exception e) {
-                    evalFailedCount++;
-                    if (mismatches.size() < QuboConstants.EXACTNESS_SAMPLE_COUNT) {
-                        mismatches.add(new ExactnessPoint(x));
-                    }
-                }
-            }
-        } finally {
-            DecisionLinkSampler.restoreLinks(ctx, savedLinks);
-        }
 
-        int totalCount = (int) total - evalFailedCount;
-        boolean exact = evalFailedCount == 0 && matchCount == totalCount && totalCount > 0;
+        pool.evaluateIndexed(n, total, (worker, index, x) -> {
+            double qx = PolyMath.evalPoly(combined, x);
+            try {
+                double fx = worker.evalCost(x) + B * worker.evalPenalty(x);
+                if (Math.abs(qx - fx) < EPS) {
+                    matchCount.incrementAndGet();
+                    addCapped(matchesSample, new ExactnessPoint(x, fx, qx));
+                } else {
+                    addCapped(mismatches, new ExactnessPoint(x, fx, qx));
+                }
+            } catch (Exception e) {
+                evalFailedCount.incrementAndGet();
+                addCapped(mismatches, new ExactnessPoint(x));
+            }
+            return null;
+        }, "Exhaustive exactness check", progress);
+
+        int totalCount = (int) total - evalFailedCount.get();
+        boolean exact = evalFailedCount.get() == 0 && matchCount.get() == totalCount && totalCount > 0;
         List<ExactnessPoint> points = !mismatches.isEmpty() ? mismatches : matchesSample;
-        PluginLog.info("Exactness check (exhaustive): " + matchCount + "/" + totalCount
+        PluginLog.info("Exactness check (exhaustive): " + matchCount.get() + "/" + totalCount
                 + " matched over all " + total + " vectors (n=" + n + ")"
-                + (evalFailedCount > 0 ? ", " + evalFailedCount + " eval failures" : ""));
-        return new ExactnessOutcome(Collections.unmodifiableList(points), "exhaustive", matchCount, totalCount, exact);
+                + (evalFailedCount.get() > 0 ? ", " + evalFailedCount.get() + " eval failures" : ""));
+        return new ExactnessOutcome(Collections.unmodifiableList(new ArrayList<>(points)), "exhaustive",
+                matchCount.get(), totalCount, exact);
+    }
+
+    /** Adds {@code p} to {@code list} unless it's already at {@link QuboConstants#EXACTNESS_SAMPLE_COUNT} —
+     *  synchronized as a compound check-then-act since multiple pool worker threads share these lists;
+     *  "first K" ordering becomes best-effort under concurrency, acceptable since the proof itself is
+     *  {@code matchCount == totalCount}, not which points ended up in this diagnostic sample. */
+    private static void addCapped(List<ExactnessPoint> list, ExactnessPoint p) {
+        synchronized (list) {
+            if (list.size() < QuboConstants.EXACTNESS_SAMPLE_COUNT) list.add(p);
+        }
     }
 
     /**

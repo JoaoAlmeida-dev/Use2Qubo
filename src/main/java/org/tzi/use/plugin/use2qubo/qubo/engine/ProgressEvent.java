@@ -17,13 +17,22 @@ public final class ProgressEvent {
     public final int degree;          // -1 if not degree-scoped
     public final long current;
     public final long total;          // <=0 => indeterminate/one-off phase message
+    /** Which {@code SandboxWorkerPool} worker this event reports, or {@code -1} for the aggregate
+     *  (all-workers-combined) line — the one line that existed before per-worker breakdown. */
+    public final int workerIndex;
 
     public ProgressEvent(String phaseLabel, String samplePrefix, int degree, long current, long total) {
+        this(phaseLabel, samplePrefix, degree, current, total, -1);
+    }
+
+    public ProgressEvent(String phaseLabel, String samplePrefix, int degree, long current, long total,
+                          int workerIndex) {
         this.phaseLabel = phaseLabel;
         this.samplePrefix = samplePrefix;
         this.degree = degree;
         this.current = current;
         this.total = total;
+        this.workerIndex = workerIndex;
     }
 
     public static ProgressEvent phase(String label) {
