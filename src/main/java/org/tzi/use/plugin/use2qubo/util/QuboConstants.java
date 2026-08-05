@@ -43,6 +43,19 @@ public final class QuboConstants {
      *  so the ancilla-consistency penalty strictly dominates (Rosenberg 1975; Dattani 2019 survey). */
     public static final double QUADRATIZATION_PENALTY_MARGIN = 1.0;
 
+    // --- SandboxWorkerPool: parallel sampling across VarSet combinations ---
+
+    /** Below this combo count, dispatching to the worker pool costs more than it saves — evaluate
+     *  sequentially on a single sandbox worker instead. Mirrors PenaltyEvaluator.PARALLEL_PENALTY_THRESHOLD. */
+    public static final int PARALLEL_SAMPLE_THRESHOLD = 16;
+
+    /** Hard cap on sandbox workers regardless of core count, since each worker holds a full
+     *  MSystem/MSystemState clone (objects + links) — memory cost, not just thread count, bounds this. */
+    public static final int MAX_SAMPLE_WORKERS = 8;
+
+    /** Interval between progress-counter polls while a batch runs on the worker pool. */
+    public static final long SAMPLE_PROGRESS_POLL_MS = 75L;
+
     // --- QuboGraphPanel: node/edge sizing ---
 
     /** Extra edge-width multiplier applied on top of the base width, scaled by |coefficient| / maxQuad. */

@@ -104,6 +104,46 @@ public final class PolySampler {
         return new Result(coeffs, samples);
     }
 
+    /**
+     * Pool-aware variant of {@link #sample}: batch-evaluates every {@code C(n,m)} combo for each
+     * degree via {@link SandboxWorkerPool#evaluate}, which parallelises across per-thread sandbox
+     * clones instead of the sequential single-{@code Evaluable} loop above. Inclusion-exclusion
+     * subtraction still runs single-threaded after each batch — cheap map lookups, no benefit from
+     * parallelising, and it must run after the batch anyway since it reads that batch's own results.
+     *
+     * @param pool   sandbox worker pool, already built and reused across cost/penalty passes and
+     *               every degree-escalation iteration by the caller
+     * @param kind   which black-box function this call samples (cost or penalty)
+     */
+    public static Result sample(int n, int fromDegree, int toDegree, Map<VarSet, Double> existingCoeffs,
+            String samplePrefix, SandboxWorkerPool pool, SandboxWorkerPool.EvalKind kind,
+            Consumer<String> progress, Consumer<ProgressEvent> structuredProgress, boolean collectSamples)
+            throws Exception {
+        Map<VarSet, Double> coeffs = new LinkedHashMap<>(existingCoeffs);
+        List<SampleRecord> samples = collectSamples ? new ArrayList<>() : Collections.emptyList();
+
+        for (int m = fromDegree; m <= toDegree; m++) {
+            int total = Combinatorics.binomial(n, m);
+            double[] raw = pool.evaluate(n, m, total, kind, samplePrefix, m, progress, structuredProgress);
+
+            // Same lazy enumeration order the pool's chunks were generated in (see
+            // VarSet#combinationsRange's javadoc) — raw[i] lines up with the i-th combo here
+            // without ever materialising the full C(n,m) combination list.
+            int i = 0;
+            for (VarSet J : VarSet.combinations(n, m)) {
+                double sub = 0.0;
+                for (VarSet I : J.properSubsets()) {
+                    sub += coeffs.getOrDefault(I, 0.0);
+                }
+                double c = raw[i] - sub;
+                coeffs.put(J, c);
+                if (collectSamples) samples.add(toSampleRecord(J, samplePrefix, raw[i]));
+                i++;
+            }
+        }
+        return new Result(coeffs, samples);
+    }
+
     private static SampleRecord toSampleRecord(VarSet J, String prefix, double rawValue) {
         int[] vars = J.vars();
         int derivedI;

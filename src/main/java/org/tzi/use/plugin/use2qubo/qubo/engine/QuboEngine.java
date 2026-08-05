@@ -10,6 +10,7 @@ import org.tzi.use.plugin.use2qubo.qubo.engine.index.DVPair;
 import org.tzi.use.plugin.use2qubo.qubo.engine.index.VarIndexBuilder;
 import org.tzi.use.plugin.use2qubo.qubo.engine.sampling.PolyMath;
 import org.tzi.use.plugin.use2qubo.qubo.engine.sampling.PolySampler;
+import org.tzi.use.plugin.use2qubo.qubo.engine.sampling.SandboxWorkerPool;
 import org.tzi.use.plugin.use2qubo.qubo.engine.sampling.VarSet;
 import org.tzi.use.plugin.use2qubo.qubo.result.QuboResult;
 import org.tzi.use.plugin.use2qubo.qubo.result.SampleRecord;
@@ -182,6 +183,35 @@ public class QuboEngine {
     public static QuboResult derive(QuboContext ctx, Consumer<String> progress,
                                      Consumer<ProgressEvent> structuredProgress,
                                      EscalationConfirm confirm, boolean collectSamples) throws Exception {
+        return derive(ctx, progress, structuredProgress, confirm, collectSamples, null);
+    }
+
+    /**
+     * Derives the QUBO Q-matrix from the given context, asking {@code confirm} before each
+     * degree-escalation step and reporting structured progress alongside the free-form
+     * {@code progress} callback.
+     *
+     * @param ctx                 QUBO derivation context (model, state, config)
+     * @param progress            optional callback that receives human-readable step labels;
+     *                            may be {@code null}. Called from the calling thread.
+     * @param structuredProgress  optional callback that receives {@link ProgressEvent}s for
+     *                            phase transitions and per-sample counts; may be {@code null}.
+     *                            Called from the calling thread.
+     * @param confirm             asked before escalating to a higher degree; declining stops escalation
+     * @param collectSamples      whether to retain per-point {@link SampleRecord}s for the result's
+     *                            {@code costSamples}/{@code penaltySamples} (needed by the GUI's
+     *                            Sampling tab). {@code false} for headless/CLI derivation, where
+     *                            nothing reads them and retaining one record per sampled combination
+     *                            is the dominant memory cost at large n.
+     * @param workerOverride      explicit {@code SandboxWorkerPool} worker count, or {@code null} to
+     *                            fall back to the pool's own {@code min(availableProcessors(),
+     *                            MAX_SAMPLE_WORKERS)} sizing. An explicit value bypasses that cap —
+     *                            the caller (e.g. the CLI's {@code --workers} flag) asked for it directly.
+     */
+    public static QuboResult derive(QuboContext ctx, Consumer<String> progress,
+                                     Consumer<ProgressEvent> structuredProgress,
+                                     EscalationConfirm confirm, boolean collectSamples,
+                                     Integer workerOverride) throws Exception {
         int n = ctx.nVars;
         PluginLog.info("QuboEngine.derive: nVars=" + n + ", maxDegree=" + ctx.maxDegree);
 
@@ -199,7 +229,8 @@ public class QuboEngine {
         Map<String, Set<MLink>> savedLinks = DecisionLinkSampler.saveAndStripLinks(ctx);
         try {
             QuboResult result = deriveWithClearedState(ctx, n, flatVars, varLabels,
-                    objExpr, evaluator, penaltyTasks, progress, structuredProgress, savedLinks, confirm, collectSamples);
+                    objExpr, evaluator, penaltyTasks, progress, structuredProgress, savedLinks, confirm,
+                    collectSamples, workerOverride);
             PluginLog.info("Derive complete: " + result);
             return result;
         } finally {
@@ -213,77 +244,79 @@ public class QuboEngine {
             List<DVPair> flatVars, List<String> varLabels, Expression objExpr, Evaluator evaluator,
             List<PenaltyEvaluator.PenaltyTask> penaltyTasks,
             Consumer<String> progress, Consumer<ProgressEvent> structuredProgress,
-            Map<String, Set<MLink>> savedLinks, EscalationConfirm confirm, boolean collectSamples) throws Exception {
+            Map<String, Set<MLink>> savedLinks, EscalationConfirm confirm, boolean collectSamples,
+            Integer workerOverride) throws Exception {
 
         int maxDegree = Math.max(2, ctx.maxDegree);
 
-        ProgressEvent.reportPhase(progress, structuredProgress, "Sampling: cost degree ≤2…");
-        PolySampler.Result cost = PolySampler.sample(n, 0, 2, Collections.emptyMap(), "cost",
-                x -> ObjectiveEvaluator.evalCost(x, flatVars, ctx, evaluator, objExpr), progress, structuredProgress, collectSamples);
-        double B = PolyMath.computePenaltyWeight(n, cost.coeffs);
+        // One pool, one sandbox clone per worker, reused for both passes and every escalation
+        // degree — none of them mutate anything a sandbox depends on (attributes/fixed links are
+        // read-only during derivation; decision links are always local to each sampled point).
+        try (SandboxWorkerPool pool = SandboxWorkerPool.build(ctx, flatVars, objExpr, workerOverride)) {
+            ProgressEvent.reportPhase(progress, structuredProgress, "Sampling: cost degree ≤2…");
+            PolySampler.Result cost = PolySampler.sample(n, 0, 2, Collections.emptyMap(), "cost",
+                    pool, SandboxWorkerPool.EvalKind.COST, progress, structuredProgress, collectSamples);
+            double B = PolyMath.computePenaltyWeight(n, cost.coeffs);
 
-        ProgressEvent.reportPhase(progress, structuredProgress, "Sampling: penalty degree ≤2…");
-        PolySampler.Result penalty = PolySampler.sample(n, 0, 2, Collections.emptyMap(), "pen",
-                x -> PenaltyEvaluator.evalPenalty(x, flatVars, ctx, penaltyTasks), progress, structuredProgress, collectSamples);
+            ProgressEvent.reportPhase(progress, structuredProgress, "Sampling: penalty degree ≤2…");
+            PolySampler.Result penalty = PolySampler.sample(n, 0, 2, Collections.emptyMap(), "pen",
+                    pool, SandboxWorkerPool.EvalKind.PENALTY, progress, structuredProgress, collectSamples);
 
-        Map<VarSet, Double> combined = PolyMath.combine(cost.coeffs, penalty.coeffs, B);
-        int degree = 2;
-
-        DecisionLinkSampler.restoreLinks(ctx, savedLinks);
-        ProgressEvent.reportPhase(progress, structuredProgress, "Running exactness check (degree " + degree + ")…");
-        ExactnessOutcome exactnessOutcome = ExactnessChecker.checkExactness(n, combined, flatVars, ctx, evaluator, penaltyTasks, objExpr, B, savedLinks, progress);
-        boolean degreeExact = ExactnessChecker.logExactnessOutcome(exactnessOutcome, degree);
-
-        while (!degreeExact && degree < maxDegree) {
-            int nextDegree = degree + 1;
-            long expectedSamples = 2L * Combinatorics.binomial(n, nextDegree);
-            if (!confirm.proceed(degree, nextDegree, expectedSamples)) {
-                PluginLog.info("QuboEngine: user declined escalation to degree " + nextDegree
-                        + "; stopping at degree " + degree);
-                break;
-            }
-
-            ProgressEvent.reportPhase(progress, structuredProgress,
-                    "Exactness failed at degree " + degree + "; escalating to degree " + nextDegree + "…");
-            PluginLog.info("QuboEngine: escalating sampling to degree " + nextDegree);
-
-            // checkExactness restores the original scenario links in its own finally block;
-            // strip them again before sampling, same as the initial degree-2 pass does.
-            DecisionLinkSampler.stripDecisionLinks(ctx);
-
-            PolySampler.Result costNext = PolySampler.sample(n, nextDegree, nextDegree, cost.coeffs, "cost",
-                    x -> ObjectiveEvaluator.evalCost(x, flatVars, ctx, evaluator, objExpr), progress, structuredProgress, collectSamples);
-            List<SampleRecord> costSamples;
-            if (collectSamples) {
-                costSamples = new ArrayList<>(cost.samples);
-                costSamples.addAll(costNext.samples);
-            } else {
-                costSamples = Collections.emptyList();
-            }
-            cost = new PolySampler.Result(costNext.coeffs, costSamples);
-
-            PolySampler.Result penaltyNext = PolySampler.sample(n, nextDegree, nextDegree, penalty.coeffs, "pen",
-                    x -> PenaltyEvaluator.evalPenalty(x, flatVars, ctx, penaltyTasks), progress, structuredProgress, collectSamples);
-            List<SampleRecord> penaltySamples;
-            if (collectSamples) {
-                penaltySamples = new ArrayList<>(penalty.samples);
-                penaltySamples.addAll(penaltyNext.samples);
-            } else {
-                penaltySamples = Collections.emptyList();
-            }
-            penalty = new PolySampler.Result(penaltyNext.coeffs, penaltySamples);
-
-            combined = PolyMath.combine(cost.coeffs, penalty.coeffs, B);
-            degree = nextDegree;
+            Map<VarSet, Double> combined = PolyMath.combine(cost.coeffs, penalty.coeffs, B);
+            int degree = 2;
 
             DecisionLinkSampler.restoreLinks(ctx, savedLinks);
             ProgressEvent.reportPhase(progress, structuredProgress, "Running exactness check (degree " + degree + ")…");
-            exactnessOutcome = ExactnessChecker.checkExactness(n, combined, flatVars, ctx, evaluator, penaltyTasks, objExpr, B, savedLinks, progress);
-            degreeExact = ExactnessChecker.logExactnessOutcome(exactnessOutcome, degree);
-        }
+            ExactnessOutcome exactnessOutcome = ExactnessChecker.checkExactness(n, combined, flatVars, ctx, evaluator, penaltyTasks, objExpr, B, savedLinks, progress, pool);
+            boolean degreeExact = ExactnessChecker.logExactnessOutcome(exactnessOutcome, degree);
 
-        int nSamples = cost.samples.size() + penalty.samples.size();
-        return ResultAssembler.buildResult(n, nSamples, combined, varLabels, B,
-                cost.samples, penalty.samples, exactnessOutcome, degreeExact, degree);
+            while (!degreeExact && degree < maxDegree) {
+                int nextDegree = degree + 1;
+                long expectedSamples = 2L * Combinatorics.binomial(n, nextDegree);
+                if (!confirm.proceed(degree, nextDegree, expectedSamples)) {
+                    PluginLog.info("QuboEngine: user declined escalation to degree " + nextDegree
+                            + "; stopping at degree " + degree);
+                    break;
+                }
+
+                ProgressEvent.reportPhase(progress, structuredProgress,
+                        "Exactness failed at degree " + degree + "; escalating to degree " + nextDegree + "…");
+                PluginLog.info("QuboEngine: escalating sampling to degree " + nextDegree);
+
+                PolySampler.Result costNext = PolySampler.sample(n, nextDegree, nextDegree, cost.coeffs, "cost",
+                        pool, SandboxWorkerPool.EvalKind.COST, progress, structuredProgress, collectSamples);
+                List<SampleRecord> costSamples;
+                if (collectSamples) {
+                    costSamples = new ArrayList<>(cost.samples);
+                    costSamples.addAll(costNext.samples);
+                } else {
+                    costSamples = Collections.emptyList();
+                }
+                cost = new PolySampler.Result(costNext.coeffs, costSamples);
+
+                PolySampler.Result penaltyNext = PolySampler.sample(n, nextDegree, nextDegree, penalty.coeffs, "pen",
+                        pool, SandboxWorkerPool.EvalKind.PENALTY, progress, structuredProgress, collectSamples);
+                List<SampleRecord> penaltySamples;
+                if (collectSamples) {
+                    penaltySamples = new ArrayList<>(penalty.samples);
+                    penaltySamples.addAll(penaltyNext.samples);
+                } else {
+                    penaltySamples = Collections.emptyList();
+                }
+                penalty = new PolySampler.Result(penaltyNext.coeffs, penaltySamples);
+
+                combined = PolyMath.combine(cost.coeffs, penalty.coeffs, B);
+                degree = nextDegree;
+
+                DecisionLinkSampler.restoreLinks(ctx, savedLinks);
+                ProgressEvent.reportPhase(progress, structuredProgress, "Running exactness check (degree " + degree + ")…");
+                exactnessOutcome = ExactnessChecker.checkExactness(n, combined, flatVars, ctx, evaluator, penaltyTasks, objExpr, B, savedLinks, progress, pool);
+                degreeExact = ExactnessChecker.logExactnessOutcome(exactnessOutcome, degree);
+            }
+
+            int nSamples = cost.samples.size() + penalty.samples.size();
+            return ResultAssembler.buildResult(n, nSamples, combined, varLabels, B,
+                    cost.samples, penalty.samples, exactnessOutcome, degreeExact, degree);
+        }
     }
 }

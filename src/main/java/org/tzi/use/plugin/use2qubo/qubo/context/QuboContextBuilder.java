@@ -84,7 +84,19 @@ public class QuboContextBuilder {
 
     // ------------------------------------------------------------------
 
-    private static Map<String, List<MObject>> buildObjectsByClass(MSystemState state) {
+    /**
+     * Groups every object currently in {@code state} by class name, sorted by name within each
+     * class. Public so {@code SandboxWorkerPool} can take a fresh snapshot of {@code ctx.state}'s
+     * *current* objects when building its per-thread sandboxes — {@code ctx.objectsByClass} is a
+     * one-time snapshot taken here at context-build time, before {@code QuboEngine.derive}'s
+     * decision-link stripping runs; for a decision variable backed by an association class (its
+     * links double as objects), stripping those links also destroys the underlying {@code MObject}s,
+     * leaving {@code ctx.objectsByClass} holding dangling references for that class. The live-ctx
+     * derivation path never dereferences those stale entries (objective/penalty read via live
+     * navigation per sample instead), but a fresh sandbox clone built from the stale snapshot would
+     * try to copy attributes off objects that no longer exist in {@code ctx.state}.
+     */
+    public static Map<String, List<MObject>> buildObjectsByClass(MSystemState state) {
         Map<String, List<MObject>> map = new LinkedHashMap<>();
         for (MObject obj : state.allObjects()) {
             map.computeIfAbsent(obj.cls().name(), k -> new ArrayList<>()).add(obj);
