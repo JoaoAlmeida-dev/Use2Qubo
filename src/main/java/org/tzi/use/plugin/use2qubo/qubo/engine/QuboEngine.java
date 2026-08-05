@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * Derives QUBO Q-matrix coefficients from a QuboContext using the
@@ -110,11 +111,12 @@ public class QuboEngine {
         List<DVPair> flatVars = buildFlatVars(ctx);
         Expression objExpr = compileObjective(ctx, null);
         Evaluator evaluator = new Evaluator();
+        List<PenaltyTask> penaltyTasks = buildPenaltyTasks(ctx);
 
         Map<String, Set<MLink>> savedLinks = saveAndStripLinks(ctx);
         try {
             double cost = evalCost(x, flatVars, ctx, evaluator, objExpr);
-            double penalty = evalPenalty(x, flatVars, ctx, evaluator);
+            double penalty = evalPenalty(x, flatVars, ctx, penaltyTasks);
             return new TrueEval(cost, penalty);
         } finally {
             restoreLinks(ctx, savedLinks);
@@ -198,11 +200,12 @@ public class QuboEngine {
         List<String> varLabels = buildVarLabels(flatVars);
         Expression objExpr = compileObjective(ctx, progress, structuredProgress);
         Evaluator evaluator = new Evaluator();
+        List<PenaltyTask> penaltyTasks = buildPenaltyTasks(ctx);
 
         Map<String, Set<MLink>> savedLinks = saveAndStripLinks(ctx);
         try {
             QuboResult result = deriveWithClearedState(ctx, n, flatVars, varLabels,
-                    objExpr, evaluator, progress, structuredProgress, savedLinks, confirm, collectSamples);
+                    objExpr, evaluator, penaltyTasks, progress, structuredProgress, savedLinks, confirm, collectSamples);
             PluginLog.info("Derive complete: " + result);
             return result;
         } finally {
@@ -214,6 +217,7 @@ public class QuboEngine {
      *  assuming decision-var links are already stripped. */
     private static QuboResult deriveWithClearedState(QuboContext ctx, int n,
             List<DVPair> flatVars, List<String> varLabels, Expression objExpr, Evaluator evaluator,
+            List<PenaltyTask> penaltyTasks,
             Consumer<String> progress, Consumer<ProgressEvent> structuredProgress,
             Map<String, Set<MLink>> savedLinks, EscalationConfirm confirm, boolean collectSamples) throws Exception {
 
@@ -226,14 +230,14 @@ public class QuboEngine {
 
         reportPhase(progress, structuredProgress, "Sampling: penalty degree ≤2…");
         PolySampler.Result penalty = PolySampler.sample(n, 0, 2, Collections.emptyMap(), "pen",
-                x -> evalPenalty(x, flatVars, ctx, evaluator), progress, structuredProgress, collectSamples);
+                x -> evalPenalty(x, flatVars, ctx, penaltyTasks), progress, structuredProgress, collectSamples);
 
         Map<VarSet, Double> combined = combine(cost.coeffs, penalty.coeffs, B);
         int degree = 2;
 
         restoreLinks(ctx, savedLinks);
         reportPhase(progress, structuredProgress, "Running exactness check (degree " + degree + ")…");
-        ExactnessOutcome exactnessOutcome = checkExactness(n, combined, flatVars, ctx, evaluator, objExpr, B, savedLinks, progress);
+        ExactnessOutcome exactnessOutcome = checkExactness(n, combined, flatVars, ctx, evaluator, penaltyTasks, objExpr, B, savedLinks, progress);
         boolean degreeExact = logExactnessOutcome(exactnessOutcome, degree);
 
         while (!degreeExact && degree < maxDegree) {
@@ -265,7 +269,7 @@ public class QuboEngine {
             cost = new PolySampler.Result(costNext.coeffs, costSamples);
 
             PolySampler.Result penaltyNext = PolySampler.sample(n, nextDegree, nextDegree, penalty.coeffs, "pen",
-                    x -> evalPenalty(x, flatVars, ctx, evaluator), progress, structuredProgress, collectSamples);
+                    x -> evalPenalty(x, flatVars, ctx, penaltyTasks), progress, structuredProgress, collectSamples);
             List<SampleRecord> penaltySamples;
             if (collectSamples) {
                 penaltySamples = new ArrayList<>(penalty.samples);
@@ -280,7 +284,7 @@ public class QuboEngine {
 
             restoreLinks(ctx, savedLinks);
             reportPhase(progress, structuredProgress, "Running exactness check (degree " + degree + ")…");
-            exactnessOutcome = checkExactness(n, combined, flatVars, ctx, evaluator, objExpr, B, savedLinks, progress);
+            exactnessOutcome = checkExactness(n, combined, flatVars, ctx, evaluator, penaltyTasks, objExpr, B, savedLinks, progress);
             degreeExact = logExactnessOutcome(exactnessOutcome, degree);
         }
 
@@ -546,17 +550,19 @@ public class QuboEngine {
      * sufficient: a pass only means no mismatch was found among the points actually checked.
      */
     private static ExactnessOutcome checkExactness(int n, Map<VarSet, Double> combined,
-            List<DVPair> flatVars, QuboContext ctx, Evaluator evaluator, Expression objExpr, double B,
+            List<DVPair> flatVars, QuboContext ctx, Evaluator evaluator, List<PenaltyTask> penaltyTasks,
+            Expression objExpr, double B,
             Map<String, Set<MLink>> savedLinks, Consumer<String> progress) throws Exception {
         if (n <= QuboConstants.EXACTNESS_EXHAUSTIVE_MAX_N) {
-            return checkExactnessExhaustive(n, combined, flatVars, ctx, evaluator, objExpr, B, savedLinks, progress);
+            return checkExactnessExhaustive(n, combined, flatVars, ctx, evaluator, penaltyTasks, objExpr, B, savedLinks, progress);
         }
-        return checkExactnessSampled(n, combined, flatVars, ctx, evaluator, objExpr, B, savedLinks);
+        return checkExactnessSampled(n, combined, flatVars, ctx, evaluator, penaltyTasks, objExpr, B, savedLinks);
     }
 
     /** Exhaustive branch: enumerates every {@code 2^n} vector, proving exactness rather than sampling it. */
     private static ExactnessOutcome checkExactnessExhaustive(int n, Map<VarSet, Double> combined,
-            List<DVPair> flatVars, QuboContext ctx, Evaluator evaluator, Expression objExpr, double B,
+            List<DVPair> flatVars, QuboContext ctx, Evaluator evaluator, List<PenaltyTask> penaltyTasks,
+            Expression objExpr, double B,
             Map<String, Set<MLink>> savedLinks, Consumer<String> progress) throws Exception {
         stripDecisionLinks(ctx);
 
@@ -576,7 +582,7 @@ public class QuboEngine {
                 double qx = evalPoly(combined, x);
                 try {
                     double fx = evalCost(x, flatVars, ctx, evaluator, objExpr)
-                              + B * evalPenalty(x, flatVars, ctx, evaluator);
+                              + B * evalPenalty(x, flatVars, ctx, penaltyTasks);
                     if (Math.abs(qx - fx) < EPS) {
                         matchCount++;
                         if (matchesSample.size() < QuboConstants.EXACTNESS_SAMPLE_COUNT) {
@@ -616,7 +622,8 @@ public class QuboEngine {
      * is exhausted and returns however many points were collected.
      */
     private static ExactnessOutcome checkExactnessSampled(int n, Map<VarSet, Double> combined,
-            List<DVPair> flatVars, QuboContext ctx, Evaluator evaluator, Expression objExpr, double B,
+            List<DVPair> flatVars, QuboContext ctx, Evaluator evaluator, List<PenaltyTask> penaltyTasks,
+            Expression objExpr, double B,
             Map<String, Set<MLink>> savedLinks) {
         stripDecisionLinks(ctx);
 
@@ -642,7 +649,7 @@ public class QuboEngine {
 
                 try {
                     double fx = evalCost(x, flatVars, ctx, evaluator, objExpr)
-                              + B * evalPenalty(x, flatVars, ctx, evaluator);
+                              + B * evalPenalty(x, flatVars, ctx, penaltyTasks);
                     points.add(new ExactnessPoint(x, fx, qx));
                 } catch (Exception e) {
                     PluginLog.warn("Exactness check: eval failed on held-out vector", e);
@@ -750,31 +757,53 @@ public class QuboEngine {
      * State must have no decision-var links before this call; restored after.
      */
     private static double evalPenalty(int[] x, List<DVPair> flatVars,
-                                      QuboContext ctx, Evaluator evaluator) throws Exception {
-        return withTemporaryLinks(x, flatVars, ctx, () -> computePenalty(ctx, evaluator, ctx.state));
+                                      QuboContext ctx, List<PenaltyTask> penaltyTasks) throws Exception {
+        return withTemporaryLinks(x, flatVars, ctx, () -> computePenalty(penaltyTasks, ctx.state));
     }
 
-    private static double computePenalty(QuboContext ctx, Evaluator evaluator,
-                                          MSystemState state) {
-        double penalty = 0.0;
+    /** One (invariant, instance) penalty check; the flattened unit of work for {@link #computePenalty}. */
+    private record PenaltyTask(Expression bodyExpr, MObject obj) {}
+
+    /** Flattens ctx.invariants x ctx.objectsByClass into a fixed task list, built once per
+     *  derivation (ctx doesn't change across samples) rather than rebuilt on every evalPenalty call. */
+    private static List<PenaltyTask> buildPenaltyTasks(QuboContext ctx) {
+        List<PenaltyTask> tasks = new ArrayList<>();
         for (MClassInvariant inv : ctx.invariants) {
-            String className = inv.cls().name();
-            List<MObject> objs = ctx.objectsByClass.getOrDefault(className, Collections.emptyList());
+            List<MObject> objs = ctx.objectsByClass.getOrDefault(inv.cls().name(), Collections.emptyList());
             for (MObject obj : objs) {
-                VarBindings bindings = new VarBindings();
-                bindings.push("self", new ObjectValue(obj.cls(), obj));
-                Value result;
-                try {
-                    result = evaluator.eval(inv.bodyExpression(), state, bindings);
-                } catch (Exception e) {
-                    PluginLog.debug("Invariant eval failed for " + obj.name() + ": " + e.getMessage());
-                    result = null;
-                }
-                boolean holds = (result instanceof BooleanValue) && ((BooleanValue) result).isTrue();
-                if (!holds) penalty += 1.0;
+                tasks.add(new PenaltyTask(inv.bodyExpression(), obj));
             }
         }
-        return penalty;
+        return tasks;
+    }
+
+    /** Below this task count, dispatch overhead outweighs any parallel speedup. */
+    private static final int PARALLEL_PENALTY_THRESHOLD = 16;
+
+    /** Evaluator is not thread-safe (mutable eval-context field) — one per worker thread. */
+    private static final ThreadLocal<Evaluator> PENALTY_EVALUATOR = ThreadLocal.withInitial(Evaluator::new);
+
+    private static double computePenalty(List<PenaltyTask> tasks, MSystemState state) {
+        Stream<PenaltyTask> stream = tasks.size() >= PARALLEL_PENALTY_THRESHOLD
+                ? tasks.parallelStream() : tasks.stream();
+        return stream.mapToDouble(t -> evalOneInvariant(t, state)).sum();
+    }
+
+    private static double evalOneInvariant(PenaltyTask t, MSystemState state) {
+        Evaluator evaluator = PENALTY_EVALUATOR.get();
+        VarBindings bindings = new VarBindings();
+        bindings.push("self", new ObjectValue(t.obj().cls(), t.obj()));
+        Value result;
+        try {
+            result = evaluator.eval(t.bodyExpr(), state, bindings);
+        } catch (Exception e) {
+            synchronized (PluginLog.class) {
+                PluginLog.debug("Invariant eval failed for " + t.obj().name() + ": " + e.getMessage());
+            }
+            result = null;
+        }
+        boolean holds = (result instanceof BooleanValue) && ((BooleanValue) result).isTrue();
+        return holds ? 0.0 : 1.0;
     }
 
     private static double computeObjective(Expression objExpr, Evaluator evaluator,
