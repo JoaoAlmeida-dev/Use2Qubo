@@ -1,12 +1,14 @@
 package org.tzi.use.plugin.use2qubo.qubo.engine;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
 import org.tzi.use.plugin.use2qubo.qubo.result.SampleRecord;
+import org.tzi.use.plugin.use2qubo.util.Combinatorics;
 
 /**
  * Generalised AutoQUBO sampling (Moraglio et al., GECCO '22, Algorithm 1): samples a black-box
@@ -51,16 +53,41 @@ public final class PolySampler {
      */
     public static Result sample(int n, int fromDegree, int toDegree, Map<VarSet, Double> existingCoeffs,
             String samplePrefix, Evaluable evaluator, Consumer<String> progress) throws Exception {
+        return sample(n, fromDegree, toDegree, existingCoeffs, samplePrefix, evaluator, progress, null, true);
+    }
+
+    /**
+     * @param structuredProgress optional callback that receives a {@link ProgressEvent} per
+     *                            sampled term, alongside the free-form {@code progress} callback;
+     *                            may be {@code null}. Called from the calling thread.
+     */
+    public static Result sample(int n, int fromDegree, int toDegree, Map<VarSet, Double> existingCoeffs,
+            String samplePrefix, Evaluable evaluator, Consumer<String> progress,
+            Consumer<ProgressEvent> structuredProgress) throws Exception {
+        return sample(n, fromDegree, toDegree, existingCoeffs, samplePrefix, evaluator, progress, structuredProgress, true);
+    }
+
+    /**
+     * @param collectSamples whether to retain a {@link SampleRecord} per sampled point (needed by
+     *                        the GUI's Sampling tab); {@code false} skips building them entirely —
+     *                        the CLI export path never reads them, and at large n retaining one
+     *                        record per combination is the dominant memory cost.
+     */
+    public static Result sample(int n, int fromDegree, int toDegree, Map<VarSet, Double> existingCoeffs,
+            String samplePrefix, Evaluable evaluator, Consumer<String> progress,
+            Consumer<ProgressEvent> structuredProgress, boolean collectSamples) throws Exception {
         Map<VarSet, Double> coeffs = new LinkedHashMap<>(existingCoeffs);
-        List<SampleRecord> samples = new ArrayList<>();
+        List<SampleRecord> samples = collectSamples ? new ArrayList<>() : Collections.emptyList();
 
         for (int m = fromDegree; m <= toDegree; m++) {
-            List<VarSet> terms = VarSet.combinations(n, m);
+            int total = Combinatorics.binomial(n, m);
             int count = 0;
-            for (VarSet J : terms) {
+            for (VarSet J : VarSet.combinations(n, m)) {
                 count++;
                 report(progress, "Sampling: " + samplePrefix + " degree " + m
-                        + " (" + count + "/" + terms.size() + ")...");
+                        + " (" + count + "/" + total + ")...");
+                reportStructured(structuredProgress, new ProgressEvent(
+                        "Sampling " + samplePrefix + " degree " + m, samplePrefix, m, count, total));
                 int[] x = J.toVector(n);
                 double raw = evaluator.eval(x);
 
@@ -70,13 +97,13 @@ public final class PolySampler {
                 }
                 double c = raw - sub;
                 coeffs.put(J, c);
-                samples.add(toSampleRecord(x, J, samplePrefix, raw));
+                if (collectSamples) samples.add(toSampleRecord(J, samplePrefix, raw));
             }
         }
         return new Result(coeffs, samples);
     }
 
-    private static SampleRecord toSampleRecord(int[] x, VarSet J, String prefix, double rawValue) {
+    private static SampleRecord toSampleRecord(VarSet J, String prefix, double rawValue) {
         int[] vars = J.vars();
         int derivedI;
         int derivedJ;
@@ -105,10 +132,14 @@ public final class PolySampler {
                 phase = sb.toString();
                 break;
         }
-        return new SampleRecord(x, phase, rawValue, derivedI, derivedJ, vars);
+        return new SampleRecord(phase, rawValue, derivedI, derivedJ, vars);
     }
 
     private static void report(Consumer<String> cb, String msg) {
         if (cb != null) cb.accept(msg);
+    }
+
+    private static void reportStructured(Consumer<ProgressEvent> cb, ProgressEvent e) {
+        if (cb != null) cb.accept(e);
     }
 }

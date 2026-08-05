@@ -16,11 +16,13 @@ package org.tzi.use.plugin.use2qubo.qubo.result;
  *
  * <p>Derived-term display: (-1,-1) → "c"; (i,i) → "Q[i,i]"; (i,j) i≠j → "Q[i,j]";
  * degree ≥ 3 → "Q[i,j,k,...]" built from {@link #termVars}.
+ *
+ * <p>The full binary assignment x ∈ {0,1}^n is not stored: every sampled point is m-hot by
+ * construction (1s exactly at {@link #termVars}, 0 elsewhere), so {@link #toVector} rebuilds it
+ * on demand instead of every instance carrying a redundant dense {@code int[n]}.
  */
 public final class SampleRecord {
 
-    /** Binary assignment x ∈ {0,1}^n for this sample. */
-    public final int[]  vector;
     /** Phase label encoding pass (cost/pen) and term type. */
     public final String phase;
     /** Raw OCL evaluation — cost value if in costSamples, penalty value if in penaltySamples. */
@@ -32,17 +34,23 @@ public final class SampleRecord {
     /** Full sorted variable-index tuple for this term (empty for constant, one entry for linear, etc.). */
     public final int[]  termVars;
 
-    public SampleRecord(int[] vector, String phase, double rawValue, int derivedI, int derivedJ) {
-        this(vector, phase, rawValue, derivedI, derivedJ, defaultTermVars(derivedI, derivedJ));
+    public SampleRecord(String phase, double rawValue, int derivedI, int derivedJ) {
+        this(phase, rawValue, derivedI, derivedJ, defaultTermVars(derivedI, derivedJ));
     }
 
-    public SampleRecord(int[] vector, String phase, double rawValue, int derivedI, int derivedJ, int[] termVars) {
-        this.vector    = vector.clone();
+    public SampleRecord(String phase, double rawValue, int derivedI, int derivedJ, int[] termVars) {
         this.phase     = phase;
         this.rawValue  = rawValue;
         this.derivedI  = derivedI;
         this.derivedJ  = derivedJ;
         this.termVars  = termVars.clone();
+    }
+
+    /** Rebuilds the dense binary assignment for n variables: 1 at each {@link #termVars} index, 0 elsewhere. */
+    public int[] toVector(int n) {
+        int[] v = new int[n];
+        for (int idx : termVars) v[idx] = 1;
+        return v;
     }
 
     private static int[] defaultTermVars(int derivedI, int derivedJ) {

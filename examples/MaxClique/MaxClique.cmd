@@ -4,12 +4,13 @@
 --
 -- Graph: 10 vertices, 18 undirected edges.
 -- Edges stored as directed (edgeSource -> edgeDest); cliqueProperty
--- invariant checks both directions.
+-- invariant (context Vertex, one instance per vertex) checks both
+-- directions.
 --
--- Optimal solution: {v3, v4, v6, v7, v9} — clique of size 5.
--- Expected QUBO (paper eq. 7, B=11):
---   diagonal  : -1 for each vertex variable
---   off-diag  : +11 for each non-edge pair of vertices
+-- Optimal solution: {v3, v4, v6, v7, v9} — clique of size 5, verified
+-- QUBO energy -5.0 (293 vars: 10 decision + 283 quadratization ancillas,
+-- degree 9, exact=true, Verma-Lewis B=2.0; see
+-- tools/use2qubo/examples/MaxClique/qubo.json and CLAUDE.md §Scope Limits).
 -- ===========================================================
 
 -- -------------------------------------------------------

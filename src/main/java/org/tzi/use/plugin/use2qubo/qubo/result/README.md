@@ -4,7 +4,7 @@ Output-side data models plus the JSON exporter. No dependency on `qubo.context` 
 
 | Class | Role |
 |---|---|
-| `SampleRecord` | One raw OCL evaluation captured during AutoQUBO sampling (vector, phase label, raw value, derived matrix indices). |
+| `SampleRecord` | One raw OCL evaluation captured during AutoQUBO sampling (phase label, raw value, derived matrix indices, sparse `termVars`; `toVector(n)` rebuilds the dense assignment on demand). |
 | `ExactnessPoint` | One held-out evaluation point from the exactness check: true `f(x)` vs. QUBO approximation `q(x)`. |
 | `QuboResult` | Immutable derived QUBO: polynomial (`linear`/`quadratic`/`constant`), diagnostics (`costSamples`, `penaltySamples`, `exactnessPoints`), ancilla/quadratization metadata. `eval(x)` evaluates the polynomial. |
 | `QuboResultExporter` | Serialises a `QuboResult` to the `qubo.json` export format; sole writer of that format. |
@@ -12,7 +12,8 @@ Output-side data models plus the JSON exporter. No dependency on `qubo.context` 
 ```mermaid
 classDiagram
     class SampleRecord {
-        +vector, phase, rawValue, derivedI, derivedJ, termVars
+        +phase, rawValue, derivedI, derivedJ, termVars
+        +toVector(n) int[]
     }
     class ExactnessPoint {
         +vector, fx, qx, evalFailed
