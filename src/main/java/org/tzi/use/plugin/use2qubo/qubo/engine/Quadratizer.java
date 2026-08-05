@@ -1,5 +1,6 @@
 package org.tzi.use.plugin.use2qubo.qubo.engine;
 
+import org.tzi.use.plugin.use2qubo.qubo.engine.sampling.VarSet;
 import org.tzi.use.plugin.use2qubo.util.QuboConstants;
 
 import java.util.ArrayList;
