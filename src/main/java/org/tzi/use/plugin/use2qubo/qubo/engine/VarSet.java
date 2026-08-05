@@ -2,7 +2,10 @@ package org.tzi.use.plugin.use2qubo.qubo.engine;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 /**
  * Immutable sorted set of decision-variable indices; the map key for a pseudo-Boolean
@@ -79,24 +82,45 @@ public final class VarSet {
         return Arrays.toString(vars);
     }
 
-    /** Enumerates all {@code m}-subsets of {@code {0, ..., n-1}} in lexicographic order. */
-    public static List<VarSet> combinations(int n, int m) {
-        List<VarSet> result = new ArrayList<>();
-        if (m == 0) {
-            result.add(EMPTY);
-            return result;
-        }
-        if (m > n) return result;
+    /** Enumerates all {@code m}-subsets of {@code {0, ..., n-1}} in lexicographic order, lazily:
+     *  one {@code int[m]} state array is reused across the walk instead of materialising all
+     *  {@code C(n,m)} combinations up front (that count is astronomical for large n/m). */
+    public static Iterable<VarSet> combinations(int n, int m) {
+        if (m < 0 || m > n) return Collections.emptyList();
+        if (m == 0) return List.of(EMPTY);
+        return () -> new Iterator<VarSet>() {
+            private final int[] combo = initCombo(m);
+            private boolean hasNext = true;
+
+            @Override
+            public boolean hasNext() {
+                return hasNext;
+            }
+
+            @Override
+            public VarSet next() {
+                if (!hasNext) throw new NoSuchElementException();
+                VarSet result = VarSet.of(combo.clone());
+                advance();
+                return result;
+            }
+
+            private void advance() {
+                int i = m - 1;
+                while (i >= 0 && combo[i] == n - m + i) i--;
+                if (i < 0) {
+                    hasNext = false;
+                    return;
+                }
+                combo[i]++;
+                for (int j = i + 1; j < m; j++) combo[j] = combo[j - 1] + 1;
+            }
+        };
+    }
+
+    private static int[] initCombo(int m) {
         int[] combo = new int[m];
         for (int i = 0; i < m; i++) combo[i] = i;
-        while (true) {
-            result.add(VarSet.of(combo.clone()));
-            int i = m - 1;
-            while (i >= 0 && combo[i] == n - m + i) i--;
-            if (i < 0) break;
-            combo[i]++;
-            for (int j = i + 1; j < m; j++) combo[j] = combo[j - 1] + 1;
-        }
-        return result;
+        return combo;
     }
 }

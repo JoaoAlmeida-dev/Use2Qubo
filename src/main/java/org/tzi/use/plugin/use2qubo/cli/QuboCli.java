@@ -23,6 +23,8 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.text.NumberFormat;
+import java.util.Locale;
 
 /**
  * Headless entry point for the derive-QUBO pipeline: compiles a {@code .use} model,
@@ -73,15 +75,22 @@ public final class QuboCli {
 
         QuboContext ctx = QuboContextBuilder.build(system, configPath);
         long t0 = System.nanoTime();
-        QuboResult result = QuboEngine.derive(ctx, msg -> System.err.println("[use2qubo-cli] " + msg));
+        ProgressBar bar = ProgressBar.forStderr();
+        // Free-form messages go to the debug log only (not stderr) — ProgressBar is the sole
+        // visible progress stream, so the two never interleave/duplicate on the console.
+        QuboResult result = QuboEngine.derive(ctx,
+                msg -> PluginLog.debug("[use2qubo-cli] " + msg),
+                bar,
+                (from, to, expected) -> true,
+                false); // headless export never reads costSamples/penaltySamples — don't retain them
         long ms = (System.nanoTime() - t0) / 1_000_000;
         result = result.withDerivationMs(ms);
 
         QuboResultExporter.write(result, outFile);
 
         System.out.println(String.format(
-                "nVars=%d exact=%s derivationMs=%d out=%s",
-                result.nVars, result.exact ? "PASS" : "FAIL", ms, outFile.getAbsolutePath()));
+                "nVars=%s exact=%s derivationMs=%d out=%s",
+                abbreviate(result.nVars), result.exact ? "PASS" : "FAIL", ms, outFile.getAbsolutePath()));
 
         return result.exact ? 0 : 3;
     }
@@ -134,6 +143,14 @@ public final class QuboCli {
         File f = new File(path);
         if (!f.isFile()) throw new FileNotFoundException(label + " file not found: " + path);
         return f;
+    }
+
+    private static final NumberFormat COMPACT_COUNT =
+            NumberFormat.getCompactNumberInstance(Locale.US, NumberFormat.Style.SHORT);
+
+    /** Formats a count compactly for CLI display, e.g. 13000 -> "13K", 13000000 -> "13M". */
+    static String abbreviate(long n) {
+        return COMPACT_COUNT.format(n);
     }
 
     private static String usage() {

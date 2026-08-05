@@ -143,23 +143,66 @@ public class QuboEngine {
      */
     public static QuboResult derive(QuboContext ctx, Consumer<String> progress,
                                      EscalationConfirm confirm) throws Exception {
+        return derive(ctx, progress, null, confirm);
+    }
+
+    /**
+     * Derives the QUBO Q-matrix from the given context, asking {@code confirm} before each
+     * degree-escalation step and reporting structured progress alongside the free-form
+     * {@code progress} callback.
+     *
+     * @param ctx                 QUBO derivation context (model, state, config)
+     * @param progress            optional callback that receives human-readable step labels;
+     *                            may be {@code null}. Called from the calling thread.
+     * @param structuredProgress  optional callback that receives {@link ProgressEvent}s for
+     *                            phase transitions and per-sample counts; may be {@code null}.
+     *                            Called from the calling thread.
+     * @param confirm             asked before escalating to a higher degree; declining stops escalation
+     */
+    public static QuboResult derive(QuboContext ctx, Consumer<String> progress,
+                                     Consumer<ProgressEvent> structuredProgress,
+                                     EscalationConfirm confirm) throws Exception {
+        return derive(ctx, progress, structuredProgress, confirm, true);
+    }
+
+    /**
+     * Derives the QUBO Q-matrix from the given context, asking {@code confirm} before each
+     * degree-escalation step and reporting structured progress alongside the free-form
+     * {@code progress} callback.
+     *
+     * @param ctx                 QUBO derivation context (model, state, config)
+     * @param progress            optional callback that receives human-readable step labels;
+     *                            may be {@code null}. Called from the calling thread.
+     * @param structuredProgress  optional callback that receives {@link ProgressEvent}s for
+     *                            phase transitions and per-sample counts; may be {@code null}.
+     *                            Called from the calling thread.
+     * @param confirm             asked before escalating to a higher degree; declining stops escalation
+     * @param collectSamples      whether to retain per-point {@link SampleRecord}s for the result's
+     *                            {@code costSamples}/{@code penaltySamples} (needed by the GUI's
+     *                            Sampling tab). {@code false} for headless/CLI derivation, where
+     *                            nothing reads them and retaining one record per sampled combination
+     *                            is the dominant memory cost at large n.
+     */
+    public static QuboResult derive(QuboContext ctx, Consumer<String> progress,
+                                     Consumer<ProgressEvent> structuredProgress,
+                                     EscalationConfirm confirm, boolean collectSamples) throws Exception {
         int n = ctx.nVars;
         PluginLog.info("QuboEngine.derive: nVars=" + n + ", maxDegree=" + ctx.maxDegree);
 
-        report(progress, "Building variable index…");
+        reportPhase(progress, structuredProgress, "Building variable index…");
         List<DVPair> flatVars = buildFlatVars(ctx);
         if (flatVars.size() != n) {
             throw new IllegalStateException(
                     "Flat var count " + flatVars.size() + " != nVars " + n);
         }
         List<String> varLabels = buildVarLabels(flatVars);
-        Expression objExpr = compileObjective(ctx, progress);
+        Expression objExpr = compileObjective(ctx, progress, structuredProgress);
         Evaluator evaluator = new Evaluator();
 
         Map<String, Set<MLink>> savedLinks = saveAndStripLinks(ctx);
         try {
             QuboResult result = deriveWithClearedState(ctx, n, flatVars, varLabels,
-                    objExpr, evaluator, progress, savedLinks, confirm);
+                    objExpr, evaluator, progress, structuredProgress, savedLinks, confirm, collectSamples);
             PluginLog.info("Derive complete: " + result);
             return result;
         } finally {
@@ -171,27 +214,25 @@ public class QuboEngine {
      *  assuming decision-var links are already stripped. */
     private static QuboResult deriveWithClearedState(QuboContext ctx, int n,
             List<DVPair> flatVars, List<String> varLabels, Expression objExpr, Evaluator evaluator,
-            Consumer<String> progress, Map<String, Set<MLink>> savedLinks, EscalationConfirm confirm) throws Exception {
+            Consumer<String> progress, Consumer<ProgressEvent> structuredProgress,
+            Map<String, Set<MLink>> savedLinks, EscalationConfirm confirm, boolean collectSamples) throws Exception {
 
         int maxDegree = Math.max(2, ctx.maxDegree);
 
-        report(progress, "Sampling: cost degree ≤2…");
+        reportPhase(progress, structuredProgress, "Sampling: cost degree ≤2…");
         PolySampler.Result cost = PolySampler.sample(n, 0, 2, Collections.emptyMap(), "cost",
-                x -> evalCost(x, flatVars, ctx, evaluator, objExpr), progress);
-        double[] costLin = new double[n];
-        double[][] costQuad = new double[n][n];
-        flattenDegree2(cost.coeffs, n, costLin, costQuad);
-        double B = computePenaltyWeight(n, costLin, costQuad);
+                x -> evalCost(x, flatVars, ctx, evaluator, objExpr), progress, structuredProgress, collectSamples);
+        double B = computePenaltyWeight(n, cost.coeffs);
 
-        report(progress, "Sampling: penalty degree ≤2…");
+        reportPhase(progress, structuredProgress, "Sampling: penalty degree ≤2…");
         PolySampler.Result penalty = PolySampler.sample(n, 0, 2, Collections.emptyMap(), "pen",
-                x -> evalPenalty(x, flatVars, ctx, evaluator), progress);
+                x -> evalPenalty(x, flatVars, ctx, evaluator), progress, structuredProgress, collectSamples);
 
         Map<VarSet, Double> combined = combine(cost.coeffs, penalty.coeffs, B);
         int degree = 2;
 
         restoreLinks(ctx, savedLinks);
-        report(progress, "Running exactness check (degree " + degree + ")…");
+        reportPhase(progress, structuredProgress, "Running exactness check (degree " + degree + ")…");
         ExactnessOutcome exactnessOutcome = checkExactness(n, combined, flatVars, ctx, evaluator, objExpr, B, savedLinks, progress);
         boolean degreeExact = logExactnessOutcome(exactnessOutcome, degree);
 
@@ -204,7 +245,8 @@ public class QuboEngine {
                 break;
             }
 
-            report(progress, "Exactness failed at degree " + degree + "; escalating to degree " + nextDegree + "…");
+            reportPhase(progress, structuredProgress,
+                    "Exactness failed at degree " + degree + "; escalating to degree " + nextDegree + "…");
             PluginLog.info("QuboEngine: escalating sampling to degree " + nextDegree);
 
             // checkExactness restores the original scenario links in its own finally block;
@@ -212,22 +254,32 @@ public class QuboEngine {
             stripDecisionLinks(ctx);
 
             PolySampler.Result costNext = PolySampler.sample(n, nextDegree, nextDegree, cost.coeffs, "cost",
-                    x -> evalCost(x, flatVars, ctx, evaluator, objExpr), progress);
-            List<SampleRecord> costSamples = new ArrayList<>(cost.samples);
-            costSamples.addAll(costNext.samples);
+                    x -> evalCost(x, flatVars, ctx, evaluator, objExpr), progress, structuredProgress, collectSamples);
+            List<SampleRecord> costSamples;
+            if (collectSamples) {
+                costSamples = new ArrayList<>(cost.samples);
+                costSamples.addAll(costNext.samples);
+            } else {
+                costSamples = Collections.emptyList();
+            }
             cost = new PolySampler.Result(costNext.coeffs, costSamples);
 
             PolySampler.Result penaltyNext = PolySampler.sample(n, nextDegree, nextDegree, penalty.coeffs, "pen",
-                    x -> evalPenalty(x, flatVars, ctx, evaluator), progress);
-            List<SampleRecord> penaltySamples = new ArrayList<>(penalty.samples);
-            penaltySamples.addAll(penaltyNext.samples);
+                    x -> evalPenalty(x, flatVars, ctx, evaluator), progress, structuredProgress, collectSamples);
+            List<SampleRecord> penaltySamples;
+            if (collectSamples) {
+                penaltySamples = new ArrayList<>(penalty.samples);
+                penaltySamples.addAll(penaltyNext.samples);
+            } else {
+                penaltySamples = Collections.emptyList();
+            }
             penalty = new PolySampler.Result(penaltyNext.coeffs, penaltySamples);
 
             combined = combine(cost.coeffs, penalty.coeffs, B);
             degree = nextDegree;
 
             restoreLinks(ctx, savedLinks);
-            report(progress, "Running exactness check (degree " + degree + ")…");
+            reportPhase(progress, structuredProgress, "Running exactness check (degree " + degree + ")…");
             exactnessOutcome = checkExactness(n, combined, flatVars, ctx, evaluator, objExpr, B, savedLinks, progress);
             degreeExact = logExactnessOutcome(exactnessOutcome, degree);
         }
@@ -246,7 +298,12 @@ public class QuboEngine {
     }
 
     private static Expression compileObjective(QuboContext ctx, Consumer<String> progress) {
-        report(progress, "Compiling objective OCL…");
+        return compileObjective(ctx, progress, null);
+    }
+
+    private static Expression compileObjective(QuboContext ctx, Consumer<String> progress,
+                                                 Consumer<ProgressEvent> structuredProgress) {
+        reportPhase(progress, structuredProgress, "Compiling objective OCL…");
         StringWriter errBuf = new StringWriter();
         Expression objExpr = OCLCompiler.compileExpression(
                 ctx.model, ctx.objectiveExpr, "objective",
@@ -292,41 +349,47 @@ public class QuboEngine {
         if (cb != null) cb.accept(msg);
     }
 
+    /** Reports a one-off phase message on both the free-form and structured progress channels. */
+    private static void reportPhase(Consumer<String> cb, Consumer<ProgressEvent> structuredCb, String msg) {
+        report(cb, msg);
+        if (structuredCb != null) structuredCb.accept(ProgressEvent.phase(msg));
+    }
+
     // -------------------------------------------------------------------------
     // Degree-2 flattening / penalty weight / combination
     // -------------------------------------------------------------------------
 
-    /** Extracts the degree-1 and degree-2 coefficients of {@code coeffs} into flat arrays
-     *  (used only for the Verma-Lewis penalty-weight computation, which is degree-2 specific by design). */
-    private static void flattenDegree2(Map<VarSet, Double> coeffs, int n, double[] lin, double[][] quad) {
-        for (Map.Entry<VarSet, Double> e : coeffs.entrySet()) {
-            VarSet J = e.getKey();
-            if (J.degree() == 1) {
-                lin[J.vars()[0]] += e.getValue();
-            } else if (J.degree() == 2) {
-                int[] v = J.vars();
-                quad[v[0]][v[1]] += e.getValue();
-            }
-        }
-    }
-
     /**
-     * Verma-Lewis per-row max penalty weight (Pauckert et al., GECCO '23 §2.1).
-     * For each row i: posRow = lin[i]+ + sum of positive quad[i][j];
+     * Verma-Lewis per-row max penalty weight (Pauckert et al., GECCO '23 §2.1), computed directly
+     * off the sparse coefficient map instead of a dense {@code n x n} matrix (which at large n is
+     * the dominant allocation for a value that only needs O(n) working memory).
+     * For each row i: posRow = lin[i]+ + sum of positive quad[i][j] (j>i only, matching the
+     *                  upper-triangular convention: each quadratic coefficient is attributed to
+     *                  its lower-index row, never both);
      *                 negRow = |lin[i]-| + sum of |negative quad[i][j]|.
      * B = max over all rows of max(posRow, negRow) + 1.
      * Tighter than the global sum bound; smaller B = better annealing landscape.
      */
-    private static double computePenaltyWeight(int n, double[] costLin, double[][] costQuad) {
+    private static double computePenaltyWeight(int n, Map<VarSet, Double> costCoeffs) {
+        double[] lin = new double[n];
+        double[] posRowQuad = new double[n];
+        double[] negRowQuad = new double[n];
+        for (Map.Entry<VarSet, Double> e : costCoeffs.entrySet()) {
+            VarSet J = e.getKey();
+            double c = e.getValue();
+            if (J.degree() == 1) {
+                lin[J.vars()[0]] += c;
+            } else if (J.degree() == 2) {
+                int i = J.vars()[0]; // vars() is sorted ascending, so vars()[0] < vars()[1]
+                if (c > 0) posRowQuad[i] += c;
+                else       negRowQuad[i] += -c;
+            }
+        }
+
         double B = 1.0;
         for (int i = 0; i < n; i++) {
-            double posRow = costLin[i] > 0 ? costLin[i] : 0.0;
-            double negRow = costLin[i] < 0 ? -costLin[i] : 0.0;
-            for (int j = i + 1; j < n; j++) {
-                double cij = costQuad[i][j];
-                if (cij > 0) posRow += cij;
-                else         negRow += -cij;
-            }
+            double posRow = (lin[i] > 0 ? lin[i] : 0.0) + posRowQuad[i];
+            double negRow = (lin[i] < 0 ? -lin[i] : 0.0) + negRowQuad[i];
             B = Math.max(B, Math.max(posRow, negRow));
         }
         B += 1.0;
@@ -406,11 +469,9 @@ public class QuboEngine {
             if (Math.abs(qz.lin[i]) >= EPS) linearMap.put(i, qz.lin[i]);
         }
         Map<String, Double> quadMap = new LinkedHashMap<>();
-        for (int i = 0; i < totalVars; i++) {
-            for (int j = i + 1; j < totalVars; j++) {
-                if (Math.abs(qz.quad[i][j]) >= EPS) quadMap.put(i + "," + j, qz.quad[i][j]);
-            }
-        }
+        qz.forEachQuadTerm((i, j, coeff) -> {
+            if (Math.abs(coeff) >= EPS) quadMap.put(i + "," + j, coeff);
+        });
 
         return new QuboResult(totalVars, nSamples, exact, qz.constant, linearMap, quadMap,
                 extendedLabels, B, 0L, costSamples, penaltySamples, exactnessPoints, degree,
@@ -436,7 +497,7 @@ public class QuboEngine {
                 // the product directly from the already-resolved earlier entries of full[].
                 full[n + k] = ancillaProduct(qz, k, full);
             }
-            double qx = evalQuadratic(qz.constant, qz.lin, qz.quad, full);
+            double qx = evalQuadratic(qz, full);
             if (Math.abs(qx - p.fx) >= EPS) return false;
         }
         return true;
@@ -447,15 +508,11 @@ public class QuboEngine {
         return full[pair[0]] * full[pair[1]];
     }
 
-    private static double evalQuadratic(double c, double[] lin, double[][] quad, double[] x) {
-        double r = c;
-        for (int i = 0; i < lin.length; i++) r += lin[i] * x[i];
-        for (int i = 0; i < quad.length; i++) {
-            for (int j = i + 1; j < quad.length; j++) {
-                r += quad[i][j] * x[i] * x[j];
-            }
-        }
-        return r;
+    private static double evalQuadratic(Quadratizer.Result qz, double[] x) {
+        double[] r = {qz.constant};
+        for (int i = 0; i < qz.lin.length; i++) r[0] += qz.lin[i] * x[i];
+        qz.forEachQuadTerm((i, j, coeff) -> r[0] += coeff * x[i] * x[j]);
+        return r[0];
     }
 
     // -------------------------------------------------------------------------
