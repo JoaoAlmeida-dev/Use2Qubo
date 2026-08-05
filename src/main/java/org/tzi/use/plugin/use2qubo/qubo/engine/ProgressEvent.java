@@ -1,5 +1,7 @@
 package org.tzi.use.plugin.use2qubo.qubo.engine;
 
+import java.util.function.Consumer;
+
 /**
  * Structured progress signal for CLI/GUI progress rendering, threaded alongside (not replacing)
  * the existing free-form {@code Consumer<String>} progress callback.
@@ -26,5 +28,16 @@ public final class ProgressEvent {
 
     public static ProgressEvent phase(String label) {
         return new ProgressEvent(label, null, -1, 0, 0);
+    }
+
+    /** Reports a message on a free-form progress callback, if non-null. */
+    public static void report(Consumer<String> cb, String msg) {
+        if (cb != null) cb.accept(msg);
+    }
+
+    /** Reports a one-off phase message on both the free-form and structured progress channels. */
+    public static void reportPhase(Consumer<String> cb, Consumer<ProgressEvent> structuredCb, String msg) {
+        report(cb, msg);
+        if (structuredCb != null) structuredCb.accept(ProgressEvent.phase(msg));
     }
 }

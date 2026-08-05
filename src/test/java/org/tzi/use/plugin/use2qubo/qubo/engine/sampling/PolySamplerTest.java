@@ -1,6 +1,7 @@
-package org.tzi.use.plugin.use2qubo.qubo.engine;
+package org.tzi.use.plugin.use2qubo.qubo.engine.sampling;
 
 import org.junit.jupiter.api.Test;
+import org.tzi.use.plugin.use2qubo.qubo.engine.ProgressEvent;
 
 import java.util.ArrayList;
 import java.util.Collections;

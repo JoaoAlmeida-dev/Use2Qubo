@@ -1,4 +1,4 @@
-package org.tzi.use.plugin.use2qubo.qubo.engine;
+package org.tzi.use.plugin.use2qubo.qubo.engine.sampling;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import org.tzi.use.plugin.use2qubo.qubo.engine.ProgressEvent;
 import org.tzi.use.plugin.use2qubo.qubo.result.SampleRecord;
 import org.tzi.use.plugin.use2qubo.util.Combinatorics;
 
@@ -36,7 +37,7 @@ public final class PolySampler {
         /** One record per sampled point, in sampling order. */
         public final List<SampleRecord> samples;
 
-        Result(Map<VarSet, Double> coeffs, List<SampleRecord> samples) {
+        public Result(Map<VarSet, Double> coeffs, List<SampleRecord> samples) {
             this.coeffs = coeffs;
             this.samples = samples;
         }
