@@ -1,0 +1,18 @@
+{
+  "decision_var_associations": ["Contains"],
+  "decision_vars": [
+    {
+      "type": "link",
+      "association": "Contains",
+      "domain": [
+        "Solution",
+        "Vertex"
+      ]
+    }
+  ],
+  "objective": {
+    "expression": "Solution.allInstances->collect(s | s.members->size())->sum()",
+    "minimise": false,
+    "max_degree": 4
+  }
+}
