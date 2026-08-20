@@ -1,0 +1,154 @@
+model GarageTrucksTSPHuge
+
+-- ===========================================================
+-- Multi-lane scale-up of GarageTrucksTSP (see JAVA-021), mirroring how
+-- GarbageTruckRoutingHuge scales the original edge-selection model: many
+-- independent lanes sharing one depot/disposal, each lane's own invariants
+-- scoped to its own waypoints/positions only.
+--
+-- Unlike the base GarageTrucksTSP (single lane, no lane attribute needed),
+-- here Waypoint and Position both carry a `lane` attribute, and the
+-- at-least-one coverage invariants filter by it -- without that filter,
+-- Waypoint.allInstances/Position.allInstances would range over every lane at
+-- once and the per-task footprint (and required polynomial degree) would
+-- grow with the total lane count instead of staying fixed at the per-lane
+-- waypoint count (3), which is the entire point of scaling this way instead
+-- of just growing a single lane's waypoint count.
+--
+-- Known architectural wall (see JAVA-021 ticket for the measurement): the
+-- plugin's decision-var indexing takes the FULL cross product of the two
+-- domain classes (here Waypoint x Position), regardless of lane -- so total
+-- nVars grows as 9 * lanes^2, not linearly in lane count. This mirrors
+-- GarbageTruckRoutingHuge's RouteRoad(Route,Road) sizing exactly (nVars =
+-- routes * roads, both of which scale with lane count there too). Kept to 4
+-- lanes here (144 decision vars) to stay tractable against PolySampler's
+-- unpruned C(n,d) exactness-check enumeration at degree 3.
+-- ===========================================================
+
+enum TerminalType { Depot, Waypoint, DisposalFacility }
+
+class Terminal
+attributes
+  terminalId   : Integer
+  terminalType : TerminalType
+end
+
+class Waypoint < Terminal
+attributes
+  lane : Integer
+end
+
+class Position
+attributes
+  idx  : Integer
+  lane : Integer
+end
+
+-- ===========================================================
+-- Association Classes
+-- ===========================================================
+
+associationclass TerminalDistance between
+  Terminal[*] role fromTerminal
+  Terminal[*] role toTerminal
+attributes
+  cost : Real
+end
+
+-- Core decision variable: one-hot waypoint/position assignment. Full cross
+-- product over ALL waypoints x ALL positions regardless of lane (see wall
+-- note above) -- the .cmd script only ever links same-lane pairs into the
+-- animated feasible solution, but every cross-lane pair still exists as a
+-- sampled decision-var slot.
+associationclass VisitAt between
+  Waypoint[*] role waypoint
+  Position[*] role position
+end
+
+-- Fixed conflict data, populated per lane only (see .cmd) -- native degree-2
+-- "at most one" side of the one-hot encoding, same lever as MaxCliquePairwise.
+associationclass PositionConflict between
+  Waypoint[1] role wa
+  Waypoint[1] role wb
+  Position[1] role pos
+end
+
+associationclass WaypointConflict between
+  Position[1] role pa
+  Position[1] role pb
+  Waypoint[1] role wp
+end
+
+-- ===========================================================
+-- Schedule (objective host, one shared instance summing every lane)
+-- ===========================================================
+
+class Schedule
+operations
+  -- Depot -> position-1 leg, summed over every lane's own position-1 (no
+  -- lane filter needed: Position.allInstances naturally has one idx=1 per
+  -- lane, and TerminalDistance is only populated depot->same-lane-waypoint).
+  startCost() : Real =
+    VisitAt.allInstances->select(v | v.position.idx = 1)
+      ->collect(v |
+          TerminalDistance.allInstances
+            ->select(td | td.fromTerminal.terminalType = #Depot and td.toTerminal = v.waypoint)
+            ->collect(td | td.cost)->sum()
+      )->sum()
+
+  endCost() : Real =
+    VisitAt.allInstances->select(v | v.position.idx = 3)
+      ->collect(v |
+          TerminalDistance.allInstances
+            ->select(td | td.fromTerminal = v.waypoint and td.toTerminal.terminalType = #DisposalFacility)
+            ->collect(td | td.cost)->sum()
+      )->sum()
+
+  middleCost() : Real =
+    Position.allInstances->select(p | p.idx < 3)
+      ->collect(p |
+          VisitAt.allInstances->select(v1 | v1.position = p)
+            ->collect(v1 |
+                VisitAt.allInstances->select(v2 | v2.position.idx = p.idx + 1 and v2.position.lane = p.lane)
+                  ->collect(v2 |
+                      TerminalDistance.allInstances
+                        ->select(td | td.fromTerminal = v1.waypoint and td.toTerminal = v2.waypoint)
+                        ->collect(td | td.cost)->sum()
+                  )->sum()
+            )->sum()
+      )->sum()
+
+  totalCost() : Real =
+    self.startCost() + self.middleCost() + self.endCost()
+end
+
+-- ===========================================================
+-- Constraints
+-- ===========================================================
+
+constraints
+
+-- At-most-one side: fixed conflict data is only ever populated within a
+-- single lane (see .cmd), so footprint stays 2 regardless of lane count.
+context PositionConflict
+  inv atMostOneWaypointPerPosition:
+    not (VisitAt.allInstances->exists(v | v.waypoint = self.wa and v.position = self.pos)
+     and VisitAt.allInstances->exists(v | v.waypoint = self.wb and v.position = self.pos))
+
+context WaypointConflict
+  inv atMostOnePositionPerWaypoint:
+    not (VisitAt.allInstances->exists(v | v.position = self.pa and v.waypoint = self.wp)
+     and VisitAt.allInstances->exists(v | v.position = self.pb and v.waypoint = self.wp))
+
+-- At-least-one side: explicitly lane-scoped (unlike the single-lane base
+-- model, this filter is load-bearing here) so footprint stays 3 (this
+-- lane's own waypoints/positions) instead of growing with total lane count.
+context Position
+  inv atLeastOneWaypointHere:
+    Waypoint.allInstances->select(w | w.lane = self.lane)->exists(w |
+      VisitAt.allInstances->exists(v | v.waypoint = w and v.position = self))
+
+context Waypoint
+  inv atLeastOnePositionHere:
+    Position.allInstances->select(p | p.lane = self.lane)->exists(p |
+      VisitAt.allInstances->exists(v | v.position = p and v.waypoint = self))

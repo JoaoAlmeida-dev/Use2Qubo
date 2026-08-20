@@ -1,0 +1,35 @@
+{
+  "qubo_path": "..\\examples\\GarageTrucksTSP\\qubo.json",
+  "num_reads": 1000,
+  "seed": 42,
+  "best_energy": 30.0,
+  "best_sample": {
+    "VisitAt(n2,pos1)": 1,
+    "VisitAt(n2,pos2)": 0,
+    "VisitAt(n2,pos3)": 0,
+    "VisitAt(n3,pos1)": 0,
+    "VisitAt(n3,pos2)": 1,
+    "VisitAt(n3,pos3)": 0,
+    "VisitAt(n4,pos1)": 0,
+    "VisitAt(n4,pos2)": 0,
+    "VisitAt(n4,pos3)": 1,
+    "anc(VisitAt(n2,pos1),VisitAt(n2,pos2))": 0,
+    "anc(VisitAt(n2,pos1),VisitAt(n3,pos1))": 0,
+    "anc(VisitAt(n2,pos2),VisitAt(n3,pos2))": 0,
+    "anc(VisitAt(n2,pos3),VisitAt(n3,pos3))": 0,
+    "anc(VisitAt(n3,pos1),VisitAt(n3,pos2))": 0,
+    "anc(VisitAt(n4,pos1),VisitAt(n4,pos2))": 0
+  },
+  "active_labels": [
+    "VisitAt(n2,pos1)",
+    "VisitAt(n3,pos2)",
+    "VisitAt(n4,pos3)"
+  ],
+  "energy_stats": {
+    "min": 30.0,
+    "max": 794.0,
+    "mean": 148.063
+  },
+  "qubo_exact": true,
+  "is_feasible": false
+}
