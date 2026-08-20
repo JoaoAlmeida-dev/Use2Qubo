@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <style>
+    .title      { font-size: 34px; font-weight: 700; fill: #0b0b0b; }
+    .subtitle   { font-size: 20px; fill: #52514e; }
+    .panelLabel { font-size: 24px; font-weight: 700; }
+    .panelSub   { font-size: 16px; fill: #52514e; }
+    .metricLbl  { font-size: 18px; fill: #52514e; }
+    .metricVal  { font-size: 44px; font-weight: 700; }
+    .badgeTxt   { font-size: 26px; font-weight: 700; fill: #ffffff; }
+    .badgeSub   { font-size: 15px; fill: #ffffff; opacity: 0.92; }
+    .footnote   { font-size: 14px; fill: #898781; }
+  </style>
+
+  <rect x="0" y="0" width="1400" height="820" fill="#fcfcfb"/>
+
+  <!-- Title -->
+  <text x="700" y="56" text-anchor="middle" class="title">Same plugin, same problem, redesigned decision variable</text>
+  <text x="700" y="86" text-anchor="middle" class="subtitle">GarageTrucksTSP: edge selection &#8594; position-indexed permutation (USE2QUBO, JAVA-021)</text>
+
+  <!-- ============ LEFT PANEL: original edge selection ============ -->
+  <g transform="translate(70,140)">
+    <rect x="0" y="0" width="560" height="560" rx="16" fill="#f9f9f7" stroke="#e1e0d9" stroke-width="2"/>
+    <text x="280" y="46" text-anchor="middle" class="panelLabel" fill="#0b0b0b">Edge selection (baseline)</text>
+    <text x="280" y="74" text-anchor="middle" class="panelSub">RouteRoad(Route,Road), whole-route invariants</text>
+
+    <!-- decorative mini edge-graph glyph -->
+    <g transform="translate(180,105)">
+      <circle cx="0"   cy="30" r="9" fill="#898781"/>
+      <circle cx="70"  cy="0"  r="9" fill="#898781"/>
+      <circle cx="140" cy="30" r="9" fill="#898781"/>
+      <circle cx="210" cy="0"  r="9" fill="#898781"/>
+      <line x1="0" y1="30" x2="70" y2="0"  stroke="#c3c2b7" stroke-width="3"/>
+      <line x1="70" y1="0" x2="140" y2="30" stroke="#c3c2b7" stroke-width="3"/>
+      <line x1="140" y1="30" x2="210" y2="0" stroke="#c3c2b7" stroke-width="3"/>
+      <line x1="70" y1="0" x2="210" y2="0" stroke="#e1e0d9" stroke-width="3" stroke-dasharray="4,5"/>
+    </g>
+
+    <!-- metrics -->
+    <g transform="translate(60,210)">
+      <text x="0" y="0" class="metricLbl">Decision + ancilla variables</text>
+      <text x="0" y="52" class="metricVal" fill="#d03b3b">247</text>
+    </g>
+    <g transform="translate(60,300)">
+      <text x="0" y="0" class="metricLbl">Polynomial degree</text>
+      <text x="0" y="52" class="metricVal" fill="#d03b3b">7</text>
+    </g>
+    <g transform="translate(60,390)">
+      <text x="0" y="0" class="metricLbl">Ancilla variables</text>
+      <text x="0" y="52" class="metricVal" fill="#d03b3b">238</text>
+    </g>
+    <text x="280" y="530" text-anchor="middle" class="footnote">exact = true (exhaustive)</text>
+  </g>
+
+  <!-- ============ ARROW + reduction badge ============ -->
+  <g transform="translate(650,340)">
+    <line x1="0" y1="60" x2="90" y2="60" stroke="#0ca30c" stroke-width="6"/>
+    <polygon points="90,44 122,60 90,76" fill="#0ca30c"/>
+    <g transform="translate(-5,-95)">
+      <rect x="-6" y="0" width="112" height="70" rx="14" fill="#0ca30c"/>
+      <text x="50" y="30" text-anchor="middle" class="badgeTxt">16.5&#215;</text>
+      <text x="50" y="52" text-anchor="middle" class="badgeSub">fewer variables</text>
+    </g>
+  </g>
+
+  <!-- ============ RIGHT PANEL: position-indexed redesign ============ -->
+  <g transform="translate(770,140)">
+    <rect x="0" y="0" width="560" height="560" rx="16" fill="#f9f9f7" stroke="#0ca30c" stroke-width="3"/>
+    <text x="280" y="46" text-anchor="middle" class="panelLabel" fill="#0b0b0b">Position encoding (redesigned)</text>
+    <text x="280" y="74" text-anchor="middle" class="panelSub">CollectsAt(BinStop,RouteSlot), one-hot permutation</text>
+
+    <!-- decorative mini permutation glyph: depot -> slots -> disposal -->
+    <g transform="translate(90,105)">
+      <circle cx="0"   cy="15" r="9" fill="#0ca30c"/>
+      <rect x="55"  y="0" width="30" height="30" rx="6" fill="#cde2fb" stroke="#2a78d6" stroke-width="2"/>
+      <rect x="130" y="0" width="30" height="30" rx="6" fill="#cde2fb" stroke="#2a78d6" stroke-width="2"/>
+      <rect x="205" y="0" width="30" height="30" rx="6" fill="#cde2fb" stroke="#2a78d6" stroke-width="2"/>
+      <circle cx="280" cy="15" r="9" fill="#0ca30c"/>
+      <line x1="9"   y1="15" x2="55"  y2="15" stroke="#0ca30c" stroke-width="3"/>
+      <line x1="85"  y1="15" x2="130" y2="15" stroke="#0ca30c" stroke-width="3"/>
+      <line x1="160" y1="15" x2="205" y2="15" stroke="#0ca30c" stroke-width="3"/>
+      <line x1="235" y1="15" x2="271" y2="15" stroke="#0ca30c" stroke-width="3"/>
+    </g>
+
+    <!-- metrics -->
+    <g transform="translate(60,210)">
+      <text x="0" y="0" class="metricLbl">Decision + ancilla variables</text>
+      <text x="0" y="52" class="metricVal" fill="#0ca30c">15</text>
+    </g>
+    <g transform="translate(60,300)">
+      <text x="0" y="0" class="metricLbl">Polynomial degree</text>
+      <text x="0" y="52" class="metricVal" fill="#0ca30c">3</text>
+    </g>
+    <g transform="translate(60,390)">
+      <text x="0" y="0" class="metricLbl">Ancilla variables</text>
+      <text x="0" y="52" class="metricVal" fill="#0ca30c">6</text>
+    </g>
+    <text x="280" y="530" text-anchor="middle" class="footnote">exact = true (exhaustive) &#8226; same 9 decision variables</text>
+  </g>
+
+  <!-- Footer -->
+  <text x="700" y="790" text-anchor="middle" class="footnote">Fixing coverage/connectivity structurally (one-hot permutation) instead of checking it (whole-route boolean invariants) removes the degree escalation that forces ancilla growth.</text>
+</svg>
