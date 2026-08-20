@@ -1,0 +1,75 @@
+model MaxCliquePairwise
+
+-- ===========================================================
+-- JAVA-020: pairwise-phrased ablation of the MaxClique example.
+-- Same Vertex/Solution/Edge/Contains as examples/MaxClique/MaxClique.use;
+-- cliqueProperty (context Vertex, whole-candidate-set predicate) is
+-- replaced by nonAdjacentPenalty (context NonAdjacent, reads exactly 2
+-- decision variables per task), mirroring Lucas (2014)'s hand-crafted
+-- pairwise Max Clique/Independent Set Ising construction. Purpose: test
+-- whether QuboEngine's own sampling/quadratization pipeline reaches
+-- degree 2 with zero extra ancillas once the invariant is phrased
+-- pairwise, i.e. whether the ancilla/degree cost of examples/MaxClique
+-- is an artefact of invariant phrasing rather than of automation itself.
+-- ===========================================================
+
+-- ===========================================================
+-- Classes
+-- ===========================================================
+
+-- A node in the graph.
+class Vertex
+attributes
+  vertexId : Integer
+end
+
+-- The candidate clique (singleton in any model instance).
+-- Decision variables are the Contains links: x_i = 1 iff vertex i is in the clique.
+class Solution
+end
+
+-- ===========================================================
+-- Associations
+-- ===========================================================
+
+-- Binary decision variables: is this vertex part of the solution clique?
+-- One Contains link per vertex means that vertex is selected (x_i = 1).
+association Contains between
+  Solution[0..1] role solution
+  Vertex[*]      role members
+end
+
+-- Undirected graph edges, stored as directed links (one per pair).
+-- Kept for parity with examples/MaxClique, unused by nonAdjacentPenalty.
+association Edge between
+  Vertex[*] role edgeSource
+  Vertex[*] role edgeDest
+end
+
+-- One instance per non-adjacent (unordered) vertex pair: the complement
+-- of Edge over the same 10-vertex graph. Giving each pair its own object
+-- identity is what lets an OCL invariant on it read exactly the two
+-- decision variables for that pair, rather than looping over every other
+-- vertex the way a context Vertex or context Solution invariant must.
+associationclass NonAdjacent between
+  Vertex[1] role va
+  Vertex[1] role vb
+end
+
+-- ===========================================================
+-- Constraints
+-- ===========================================================
+
+constraints
+
+context Vertex
+  inv positiveId:
+    self.vertexId > 0
+
+context NonAdjacent
+  -- If both vertices of a non-adjacent pair are selected, that pair
+  -- violates the clique property. Reads exactly self.va's and self.vb's
+  -- Contains link (2 decision variables), so this task is native
+  -- degree 2: no quadratization ancilla should be needed for it.
+  inv nonAdjacentPenalty:
+    not (self.va.solution->notEmpty() and self.vb.solution->notEmpty())

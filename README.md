@@ -35,7 +35,8 @@ The [examples/](examples/) directory contains ready-to-load `.use` models with m
 | Example | Description |
 |---------|-------------|
 | [examples/GarageTrucks/](examples/GarageTrucks/GarbageTruckRouting.use) | Garbage truck routing model; decision variables encode route/stop assignments, objective minimises total travel time. See [qubo_config_schema.md](examples/GarageTrucks/qubo_config_schema.md) for a full field-by-field reference of `qubo_config.json`. |
-| [examples/autoquboMaxClique/](examples/autoquboMaxClique/MaxClique.use) | Max-clique model demonstrating AutoQUBO sampling on a classic combinatorial benchmark. |
+| [examples/MaxClique/](examples/MaxClique/MaxClique.use) | Max-clique model demonstrating AutoQUBO sampling on a classic combinatorial benchmark. |
+| [examples/MaxCliquePairwise/](examples/MaxCliquePairwise/MaxCliquePairwise.use) | Pairwise-phrased ablation of MaxClique; matches a hand-crafted degree-2, zero-ancilla formulation. |
 
 Each example folder also ships a `.cmd` file with USE console commands to load the model and populate an initial object diagram, useful for a quick smoke test after installing the plugin.
 
