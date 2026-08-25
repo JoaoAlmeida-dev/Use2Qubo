@@ -99,8 +99,9 @@ public class DeriveQuboAction implements IPluginActionDelegate {
             protected QuboResult doInBackground() throws Exception {
                 PluginLog.info("QuboEngine.derive starting on background thread");
                 long t0 = System.nanoTime();
-                QuboResult result = QuboEngine.derive(ctx, this::publish,
-                        (fromDegree, toDegree, expectedSamples) -> confirmEscalation(parent, fromDegree, toDegree, expectedSamples));
+                QuboResult result = QuboEngine.derive(ctx, QuboEngine.DeriveOptions.defaults()
+                        .withProgress(this::publish)
+                        .withConfirm((fromDegree, toDegree, expectedSamples) -> confirmEscalation(parent, fromDegree, toDegree, expectedSamples)));
                 long ms = (System.nanoTime() - t0) / 1_000_000;
                 PluginLog.info("QuboEngine.derive finished in " + ms + " ms: " + result);
                 return result.withDerivationMs(ms);
