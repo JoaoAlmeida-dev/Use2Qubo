@@ -201,24 +201,69 @@ public final class SandboxWorkerPool implements AutoCloseable {
         double[] raw = new double[total];
         if (total == 0) return raw;
 
+        dispatchChunked(total, samplePrefix + " degree " + degree + ", " + total + " combos",
+                (worker, start, end, tick) -> {
+                    int i = start;
+                    for (VarSet J : VarSet.combinationsRange(n, m, start, end - start)) {
+                        raw[i] = worker.eval(kind, J.toVector(n));
+                        i++;
+                        tick.run();
+                    }
+                },
+                (counts, totals) -> reportBatch(progress, structuredProgress, samplePrefix, degree,
+                        counts, totals, sum(counts), total));
+
+        return raw;
+    }
+
+    /** One arbitrary per-chunk unit of work handed to {@link #dispatchChunked}, run against a single
+     *  worker's sandbox over {@code [start, end)}; {@code tick} must be called once per completed
+     *  item so the shared progress counter (single-counter sequential fallback, per-worker
+     *  {@code AtomicInteger} when pooled) stays accurate. No result-storage type: each caller's
+     *  lambda closes over and writes directly into its own result array/list, sidestepping the
+     *  double-boxing cost of a generic return value at {@code C(n,m)} scale. */
+    @FunctionalInterface
+    private interface ChunkWork {
+        void run(SandboxWorker worker, int start, int end, Runnable tick) throws Exception;
+    }
+
+    /** Reports one progress tick: {@code counts}/{@code totals} are per-worker when pooled (same
+     *  shape {@link #reportBatch} expects), or single-element {@code {done}}/{@code {total}} in the
+     *  sequential fallback. Called from the calling thread only — either synchronously after each
+     *  sequential item, or from the poll loop while pooled — matching the "calling thread only"
+     *  contract {@code progress}/{@code structuredProgress} callers rely on. */
+    @FunctionalInterface
+    private interface ProgressTick {
+        void onTick(int[] counts, int[] totals);
+    }
+
+    /**
+     * Shared dispatch skeleton for {@link #evaluate} and {@link #evaluateIndexed}: below
+     * {@link QuboConstants#PARALLEL_SAMPLE_THRESHOLD} (or with only one worker), runs {@code work}
+     * on a single sandbox worker sequentially, ticking {@code onPollTick} after every item;
+     * otherwise splits {@code [0, total)} into {@code nWorkers} contiguous chunks, submits one
+     * {@code work} call per chunk to the executor, and polls a per-worker progress counter every
+     * {@link QuboConstants#SAMPLE_PROGRESS_POLL_MS} until all chunks finish, surfacing the first
+     * worker exception via {@code future.get()}.
+     */
+    private void dispatchChunked(int total, String logPrefix, ChunkWork work, ProgressTick onPollTick)
+            throws Exception {
         int nWorkers = Math.min(workers.size(), Math.max(1, total));
         boolean pooled = total >= QuboConstants.PARALLEL_SAMPLE_THRESHOLD && nWorkers > 1;
 
         PluginLog.info("SandboxWorkerPool: " + (pooled ? "pooled" : "sequential fallback")
-                + " batch — " + samplePrefix + " degree " + degree + ", " + total + " combos"
+                + " batch — " + logPrefix
                 + (pooled ? " across " + nWorkers + " workers" : " (threshold="
                         + QuboConstants.PARALLEL_SAMPLE_THRESHOLD + ")"));
 
         if (!pooled) {
             SandboxWorker w = workers.get(0);
-            int i = 0;
-            for (VarSet J : VarSet.combinationsRange(n, m, 0, total)) {
-                raw[i] = w.eval(kind, J.toVector(n));
-                i++;
-                reportBatch(progress, structuredProgress, samplePrefix, degree,
-                        new int[]{i}, new int[]{total}, i, total);
-            }
-            return raw;
+            int[] count = {0};
+            work.run(w, 0, total, () -> {
+                count[0]++;
+                onPollTick.onTick(new int[]{count[0]}, new int[]{total});
+            });
+            return;
         }
 
         int chunkSize = (total + nWorkers - 1) / nWorkers;
@@ -232,16 +277,10 @@ public final class SandboxWorkerPool implements AutoCloseable {
             int end = Math.min(total, start + chunkSize);
             if (start >= end) continue;
             SandboxWorker worker = workers.get(w);
-            int chunkLen = end - start;
-            chunkTotal[w] = chunkLen;
             int workerIdx = w;
+            chunkTotal[w] = end - start;
             futures.add(executor.submit((Callable<Void>) () -> {
-                int i = start;
-                for (VarSet J : VarSet.combinationsRange(n, m, start, chunkLen)) {
-                    raw[i] = worker.eval(kind, J.toVector(n));
-                    i++;
-                    chunkProgress[workerIdx].incrementAndGet();
-                }
+                work.run(worker, start, end, chunkProgress[workerIdx]::incrementAndGet);
                 return null;
             }));
         }
@@ -253,14 +292,13 @@ public final class SandboxWorkerPool implements AutoCloseable {
             int sum = sum(counts);
             if (sum != lastReportedTotal) {
                 lastReportedTotal = sum;
-                reportBatch(progress, structuredProgress, samplePrefix, degree, counts, chunkTotal, sum, total);
+                onPollTick.onTick(counts, chunkTotal);
             }
         }
         for (Future<?> f : futures) f.get(); // surface any worker exception
         if (lastReportedTotal != total) {
-            reportBatch(progress, structuredProgress, samplePrefix, degree, chunkTotal, chunkTotal, total, total);
+            onPollTick.onTick(chunkTotal, chunkTotal);
         }
-        return raw;
     }
 
     private static int[] currentCounts(AtomicInteger[] chunkProgress) {
@@ -305,53 +343,15 @@ public final class SandboxWorkerPool implements AutoCloseable {
         @SuppressWarnings("unchecked")
         R[] results = (R[]) new Object[totalInt];
 
-        int nWorkers = Math.min(workers.size(), Math.max(1, totalInt));
-        boolean pooled = totalInt >= QuboConstants.PARALLEL_SAMPLE_THRESHOLD && nWorkers > 1;
+        dispatchChunked(totalInt, phaseLabel + ", " + totalInt + " indices",
+                (worker, start, end, tick) -> {
+                    for (int i = start; i < end; i++) {
+                        results[i] = task.run(worker, i, toVector(n, i));
+                        tick.run();
+                    }
+                },
+                (counts, totals) -> reportIndexed(progress, phaseLabel, sum(counts), totalInt));
 
-        PluginLog.info("SandboxWorkerPool: " + (pooled ? "pooled" : "sequential fallback")
-                + " batch — " + phaseLabel + ", " + totalInt + " indices"
-                + (pooled ? " across " + nWorkers + " workers" : " (threshold="
-                        + QuboConstants.PARALLEL_SAMPLE_THRESHOLD + ")"));
-
-        if (!pooled) {
-            SandboxWorker w = workers.get(0);
-            for (int i = 0; i < totalInt; i++) {
-                results[i] = task.run(w, i, toVector(n, i));
-                reportIndexed(progress, phaseLabel, i + 1, totalInt);
-            }
-            return Arrays.asList(results);
-        }
-
-        int chunkSize = (totalInt + nWorkers - 1) / nWorkers;
-        AtomicInteger completed = new AtomicInteger(0);
-        List<Future<?>> futures = new ArrayList<>(nWorkers);
-        for (int w = 0; w < nWorkers; w++) {
-            int start = w * chunkSize;
-            int end = Math.min(totalInt, start + chunkSize);
-            if (start >= end) continue;
-            SandboxWorker worker = workers.get(w);
-            futures.add(executor.submit((Callable<Void>) () -> {
-                for (int i = start; i < end; i++) {
-                    results[i] = task.run(worker, i, toVector(n, i));
-                    completed.incrementAndGet();
-                }
-                return null;
-            }));
-        }
-
-        int lastReported = 0;
-        while (!allDone(futures)) {
-            Thread.sleep(QuboConstants.SAMPLE_PROGRESS_POLL_MS);
-            int done = completed.get();
-            if (done != lastReported) {
-                lastReported = done;
-                reportIndexed(progress, phaseLabel, done, totalInt);
-            }
-        }
-        for (Future<?> f : futures) f.get(); // surface any worker exception
-        if (lastReported != totalInt) {
-            reportIndexed(progress, phaseLabel, totalInt, totalInt);
-        }
         return Arrays.asList(results);
     }
 
