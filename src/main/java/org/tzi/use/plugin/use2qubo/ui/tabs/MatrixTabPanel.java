@@ -41,16 +41,14 @@ public class MatrixTabPanel extends JSplitPane {
             colNames[i] = ViewFormatUtil.abbrev(result.varLabels.get(i));
         }
 
+        // Upper-triangular Q, matching QuboResult/qubo.json: each coupling appears once at (i, j), i < j.
+        // Lower-triangle cells stay null and render as empty grey cells.
         Double[][] data = new Double[n][n];
         for (int i = 0; i < n; i++) {
-            for (int j = 0; j < n; j++) {
-                if (i == j) {
-                    data[i][j] = result.linear.getOrDefault(i, 0.0);
-                } else if (i < j) {
-                    data[i][j] = result.quadratic.getOrDefault(i + "," + j, 0.0);
-                } else {
-                    data[i][j] = result.quadratic.getOrDefault(j + "," + i, 0.0);
-                }
+            for (int j = i; j < n; j++) {
+                data[i][j] = (i == j)
+                        ? result.linear.getOrDefault(i, 0.0)
+                        : result.quadratic.getOrDefault(i + "," + j, 0.0);
             }
         }
 
@@ -66,6 +64,17 @@ public class MatrixTabPanel extends JSplitPane {
 
         final double capturedMaxAbs = maxAbs;
         JTable table = new JTable(model) {
+            /** Redirects any lower-triangle selection (click, keyboard, highlightCell) to its upper mirror. */
+            @Override
+            public void changeSelection(int row, int col, boolean toggle, boolean extend) {
+                if (row > col) {
+                    int tmp = row;
+                    row = col;
+                    col = tmp;
+                }
+                super.changeSelection(row, col, toggle, extend);
+            }
+
             @Override
             protected JTableHeader createDefaultTableHeader() {
                 return new JTableHeader(columnModel) {
@@ -134,12 +143,14 @@ public class MatrixTabPanel extends JSplitPane {
         setResizeWeight(0.7);
     }
 
-    /** Selects and scrolls to the Q-matrix cell at (i, j); called from the Sampling tab. */
+    /** Selects and scrolls to the Q-matrix cell at (i, j), normalised to the upper triangle; called from the Sampling tab. */
     public void highlightCell(int i, int j) {
         if (i < 0 || j < 0 || i >= matrixTable.getRowCount() || j >= matrixTable.getColumnCount()) return;
+        int row = Math.min(i, j);
+        int col = Math.max(i, j);
         matrixTable.requestFocusInWindow();
-        matrixTable.changeSelection(i, j, false, false);
-        matrixTable.scrollRectToVisible(matrixTable.getCellRect(i, j, true));
+        matrixTable.changeSelection(row, col, false, false);
+        matrixTable.scrollRectToVisible(matrixTable.getCellRect(row, col, true));
     }
 
     /** Highlights the variable-index row(s) for the selected Q-matrix cell (i, j) in the variable table. */
@@ -156,6 +167,8 @@ public class MatrixTabPanel extends JSplitPane {
     private static final class ColoredCellRenderer extends JLabel implements TableCellRenderer {
         private static final Border SELECTED_BORDER = BorderFactory.createLineBorder(Color.ORANGE, 3);
         private static final Border UNSELECTED_BORDER = BorderFactory.createEmptyBorder(3, 3, 3, 3);
+        /** Background for the empty lower triangle. */
+        private static final Color LOWER_TRIANGLE = new Color(0xE4, 0xE4, 0xE4);
 
         private final double maxAbs;
 
@@ -168,7 +181,13 @@ public class MatrixTabPanel extends JSplitPane {
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value,
                 boolean isSelected, boolean hasFocus, int row, int col) {
-            double v = (value instanceof Double) ? (Double) value : 0.0;
+            if (!(value instanceof Double)) {
+                setText("");
+                setBackground(LOWER_TRIANGLE);
+                setBorder(UNSELECTED_BORDER);
+                return this;
+            }
+            double v = (Double) value;
             setText(String.format("%.3f", v));
             setBackground(ViewFormatUtil.colorForValue(v, maxAbs));
             setBorder(isSelected ? SELECTED_BORDER : UNSELECTED_BORDER);

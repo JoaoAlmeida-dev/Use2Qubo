@@ -5,7 +5,7 @@ slice of it) in its constructor and is otherwise self-contained.
 
 | Tab | Class | Shows |
 |---|---|---|
-| Matrix | `MatrixTabPanel` | Colour-coded Q-matrix table (linear diagonal + quadratic off-diagonal), variable-label list, and the algebraic expression (`ExpressionPanel`). |
+| Matrix | `MatrixTabPanel` | Colour-coded upper-triangular Q-matrix table (linear diagonal + each quadratic coupling once above it, lower half empty, same convention as `qubo.json`), variable-label list, and the algebraic expression (`ExpressionPanel`). |
 | Terms | `TermsTabPanel` | Flat table of every non-zero coefficient, sorted by \|coefficient\| descending. |
 | Sampling | `SamplingTabPanel` | Raw `SampleRecord`s from both AutoQUBO passes (cost, penalty), with hover detail. |
 | Exactness | `ExactnessTabPanel` | Held-out `ExactnessPoint` table: `f(x)` vs `q(x)` vs error, per point, colour-flagged on mismatch. |
