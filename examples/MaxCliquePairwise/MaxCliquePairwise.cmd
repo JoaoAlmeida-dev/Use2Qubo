@@ -1,16 +1,11 @@
 -- ===========================================================
--- MAX-CLIQUE instance from AutoQUBO paper (Moraglio et al., GECCO 2022)
--- Figure 3 / Section 5.2
+-- JAVA-020: MAX-CLIQUE pairwise ablation.
+-- Same 10-vertex, 18-edge graph and optimal clique as
+-- examples/MaxClique/MaxClique.cmd (AutoQUBO paper, Moraglio et al.,
+-- GECCO 2022, Figure 3 / Section 5.2), plus the 27 non-adjacent
+-- (complement) pairs materialised as NonAdjacent links.
 --
--- Graph: 10 vertices, 18 undirected edges.
--- Edges stored as directed (edgeSource -> edgeDest); cliqueProperty
--- invariant (context Vertex, one instance per vertex) checks both
--- directions.
---
--- Optimal solution: {v3, v4, v6, v7, v9} — clique of size 5, verified
--- QUBO energy -5.0 (293 vars: 10 decision + 283 quadratization ancillas,
--- degree 9, exact=true, Verma-Lewis B=2.0; see
--- tools/use2qubo/examples/MaxClique/qubo.json and CLAUDE.md §Scope Limits).
+-- Optimal solution: {v3, v4, v6, v7, v9} - clique of size 5.
 -- ===========================================================
 
 -- -------------------------------------------------------
@@ -38,7 +33,8 @@
 !set v10.vertexId := 10
 
 -- -------------------------------------------------------
--- Edges (one directed insertion per undirected edge)
+-- Edges (kept for parity with examples/MaxClique; unused by
+-- nonAdjacentPenalty, which only reads NonAdjacent).
 -- Paper edge set: {(1,3),(2,4),(2,5),(3,6),(3,9),(3,7),(3,4),
 --                  (4,6),(4,9),(4,7),(4,8),(5,7),(5,8),(6,7),
 --                  (6,9),(7,8),(7,9),(7,10)}
@@ -61,6 +57,38 @@
 !insert (v7,  v8)  into Edge
 !insert (v7,  v9)  into Edge
 !insert (v7,  v10) into Edge
+
+-- -------------------------------------------------------
+-- NonAdjacent: complement of the 18 edges above, over the same
+-- 10-vertex graph (C(10,2) = 45 pairs total, 45 - 18 = 27 non-edges).
+-- -------------------------------------------------------
+!insert (v1,  v2)  into NonAdjacent
+!insert (v1,  v4)  into NonAdjacent
+!insert (v1,  v5)  into NonAdjacent
+!insert (v1,  v6)  into NonAdjacent
+!insert (v1,  v7)  into NonAdjacent
+!insert (v1,  v8)  into NonAdjacent
+!insert (v1,  v9)  into NonAdjacent
+!insert (v1,  v10) into NonAdjacent
+!insert (v2,  v3)  into NonAdjacent
+!insert (v2,  v6)  into NonAdjacent
+!insert (v2,  v7)  into NonAdjacent
+!insert (v2,  v8)  into NonAdjacent
+!insert (v2,  v9)  into NonAdjacent
+!insert (v2,  v10) into NonAdjacent
+!insert (v3,  v5)  into NonAdjacent
+!insert (v3,  v8)  into NonAdjacent
+!insert (v3,  v10) into NonAdjacent
+!insert (v4,  v5)  into NonAdjacent
+!insert (v4,  v10) into NonAdjacent
+!insert (v5,  v6)  into NonAdjacent
+!insert (v5,  v9)  into NonAdjacent
+!insert (v5,  v10) into NonAdjacent
+!insert (v6,  v8)  into NonAdjacent
+!insert (v6,  v10) into NonAdjacent
+!insert (v8,  v9)  into NonAdjacent
+!insert (v8,  v10) into NonAdjacent
+!insert (v9,  v10) into NonAdjacent
 
 -- -------------------------------------------------------
 -- Solution: optimal clique {v3, v4, v6, v7, v9}

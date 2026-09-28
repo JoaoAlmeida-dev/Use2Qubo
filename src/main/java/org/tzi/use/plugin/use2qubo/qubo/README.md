@@ -26,17 +26,41 @@ derive the coefficients of an equivalent quadratic pseudo-Boolean polynomial
 (AutoQUBO, no symbolic OCL differentiation needed), with degree escalation and Rosenberg
 quadratization for objectives that aren't degree-2-exact.
 
+## Interpolation: from samples to polynomial
+
+No fitting or smoothing. The engine samples `f` exactly at every vector with at most `d`
+ones (`d` = current degree) and solves one coefficient per sample by inclusion-exclusion
+(`PolySampler`):
+
+```
+c    = f(0)
+c_i  = f(e_i)       − c
+c_ij = f(e_i + e_j) − c_i − c_j − c        (general: c_J = f(x^J) − Σ_{I ⊊ J} c_I)
+```
+
+Any other input, sampled or not, is evaluated by summing the terms whose variables are
+all 1 (`PolyMath.evalPoly`), e.g. `q(111) = c + c_0 + c_1 + c_2 + c_01 + c_02 + c_12`.
+
+This is exact iff `f` has no term above degree `d`; otherwise the error at `x` equals the
+dropped higher-order coefficients inside `ones(x)`. Sampled points always match, so only
+the exactness check on unsampled points can detect a missing term.
+
+Example: boolean penalty "≥ 2 of 3 links active" gives `c_ij = 1`, so `q(111) = 3` while
+`f(111) = 1`. Escalating to `d = 3` recovers `c_012 = −2` and the result becomes exact.
+
 ## Derivation pipeline (`QuboEngine.derive`)
 
 ```mermaid
 flowchart TD
-    A[strip existing decision-var links] --> B["sample cost(x), degree ≤ 2\n(PolySampler)"]
-    B --> C[compute penalty weight B\nVerma-Lewis per-row max]
-    C --> D["sample penalty(x), degree ≤ 2"]
-    D --> E["combine: cost + B·penalty"]
-    E --> F[exactness check on held-out points]
+    A[strip existing decision-var links] --> B["sample cost(x) at all\n≤2-hot vectors"]
+    B --> B2["interpolate cost coefficients\n(inclusion-exclusion)"]
+    B2 --> C[compute penalty weight B\nVerma-Lewis per-row max]
+    C --> D["sample penalty(x) at all\n≤2-hot vectors"]
+    D --> D2["interpolate penalty coefficients\n(inclusion-exclusion)"]
+    D2 --> E["combine: q = cost + B·penalty"]
+    E --> F["exactness check:\nq(x) vs f(x) on unsampled x"]
     F -->|exact| G[assemble QuboResult]
-    F -->|not exact, degree < maxDegree| H[escalate: sample next degree\nfor cost & penalty]
+    F -->|not exact, degree < maxDegree| H["escalate: sample (d+1)-hot vectors,\ninterpolate new coefficients\nfor cost & penalty"]
     H --> E
     F -->|not exact, degree == maxDegree| I[keep best-effort degree-2\npoly, exact=false]
     G --> J{degree > 2?}

@@ -1,0 +1,145 @@
+model GarageTrucksTSP
+
+-- ===========================================================
+-- Position-indexed (Lucas/TSP-style) redesign of GarageTruckRouting.
+--
+-- Instead of RouteRoad(Route,Road) edge selection, the decision variable is
+-- CollectsAt(BinStop,RouteSlot): a one-hot permutation of the 3 bin stops
+-- (n2,n3,n4) over 3 middle slots. Depot is fixed as the implicit start,
+-- disposal as the implicit end -- neither is a decision variable, so the
+-- model needs no routeConnected/binCovered/routeTouchesDepot/Disposal
+-- invariants: full coverage and connectivity fall out structurally from a
+-- valid permutation, they are not checked, they cannot fail to hold once
+-- exactly-one-per-slot/exactly-one-per-stop holds (enforced directly via
+-- ->size() = 1 cardinality checks -- see JAVA-021 ticket for the earlier,
+-- more elaborate SlotClash/BinClash pairwise-conflict version this replaced).
+--
+-- Edge costs between stops are the metric closure (shortest path) over
+-- the original GarbageTruckRouting road graph, precomputed and stored as
+-- fixed TravelTime data -- this is what "there is always a way from
+-- point a to point b in a real city, even where no direct road exists"
+-- (project scoping decision) buys: the underlying multi-hop road topology
+-- doesn't need its own decision variables, only the order of stops does.
+--
+-- Ablation scope: capacity/fuel-range invariants are intentionally dropped
+-- here (see JAVA-021 ticket) -- they would reintroduce the same
+-- self.truck-coupling blowup that made the routeConnected-only fix (first
+-- GarageTrucksPairwise attempt) worse, not better. This variant isolates the
+-- position-encoding lever on its own.
+-- ===========================================================
+
+enum StopType { Depot, BinStop, DisposalFacility }
+
+class Stop
+attributes
+  stopId   : Integer
+  stopType : StopType
+end
+
+-- A stop that must be visited in some order: the 3 bin locations.
+-- Subclass of Stop, not Stop instances themselves, so the CollectsAt
+-- decision variable's domain (see qubo_config.json) is exactly these 3
+-- objects, not depot/disposal too.
+class BinStop < Stop
+end
+
+class RouteSlot
+attributes
+  idx : Integer
+end
+
+-- ===========================================================
+-- Association Classes
+-- ===========================================================
+
+-- Fixed shortest-path cost between two stops (metric closure over the
+-- original road graph). Not a decision variable -- authored directly as
+-- scenario data in the .cmd script.
+associationclass TravelTime between
+  Stop[*] role fromStop
+  Stop[*] role toStop
+attributes
+  cost : Real
+end
+
+-- Which slot a bin stop occupies in the visiting order.
+-- Core decision variable of this example: one-hot over 3 bin stops x 3 slots.
+associationclass CollectsAt between
+  BinStop[*] role binStop
+  RouteSlot[*] role routeSlot
+end
+
+-- ===========================================================
+-- CollectionRun (objective host)
+-- ===========================================================
+
+-- Singleton hosting the total-cost objective, mirroring Route::edgeCost()
+-- in the original model. One instance, sched, created in the .cmd script.
+class CollectionRun
+operations
+  -- Depot -> slot 1 leg.
+  startCost() : Real =
+    CollectsAt.allInstances->select(v | v.routeSlot.idx = 1)
+      ->collect(v |
+          TravelTime.allInstances
+            ->select(tt | tt.fromStop.stopType = #Depot and tt.toStop = v.binStop)
+            ->collect(tt | tt.cost)->sum()
+      )->sum()
+
+  -- Slot 3 -> disposal leg.
+  endCost() : Real =
+    CollectsAt.allInstances->select(v | v.routeSlot.idx = 3)
+      ->collect(v |
+          TravelTime.allInstances
+            ->select(tt | tt.fromStop = v.binStop and tt.toStop.stopType = #DisposalFacility)
+            ->collect(tt | tt.cost)->sum()
+      )->sum()
+
+  -- Sum of consecutive-slot legs (slot 1->2, 2->3). Each term reads
+  -- exactly 2 decision-var links (v1.binStop at slot p, v2.binStop at
+  -- slot p+1), native degree 2.
+  middleCost() : Real =
+    RouteSlot.allInstances->select(p | p.idx < 3)
+      ->collect(p |
+          CollectsAt.allInstances->select(v1 | v1.routeSlot = p)
+            ->collect(v1 |
+                CollectsAt.allInstances->select(v2 | v2.routeSlot.idx = p.idx + 1)
+                  ->collect(v2 |
+                      TravelTime.allInstances
+                        ->select(tt | tt.fromStop = v1.binStop and tt.toStop = v2.binStop)
+                        ->collect(tt | tt.cost)->sum()
+                  )->sum()
+            )->sum()
+      )->sum()
+
+  totalTravelTime() : Real =
+    self.startCost() + self.middleCost() + self.endCost()
+end
+
+-- ===========================================================
+-- Constraints
+-- ===========================================================
+
+constraints
+
+-- -----------------------------------------------------------
+-- Simplified one-hot encoding (see JAVA-021 ticket): a single ->size() = 1
+-- cardinality check per side replaces the earlier four-invariant split
+-- (SlotClash/BinClash pairwise "at most one" + exists-based "at least
+-- one"). Drops two associationclasses and their .cmd population data.
+-- Footprint is still 3 decision-var links per task (same as the old
+-- at-least-one side), so this is not expected to change the required
+-- degree -- but the old at-most-one side was natively degree 2 by
+-- construction (pairwise conflicts), and size()=1 is not, so verify the
+-- ancilla count rather than assume it stays flat.
+-- -----------------------------------------------------------
+
+context RouteSlot
+  inv exactlyOneBinStopHere:
+    BinStop.allInstances->select(b |
+      CollectsAt.allInstances->exists(v | v.binStop = b and v.routeSlot = self))->size() = 1
+
+context BinStop
+  inv exactlyOneSlotHere:
+    RouteSlot.allInstances->select(p |
+      CollectsAt.allInstances->exists(v | v.routeSlot = p and v.binStop = self))->size() = 1

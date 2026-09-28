@@ -1,0 +1,22 @@
+{
+  "decision_var_associations": [
+    "CollectsAt"
+  ],
+  "decision_vars": [
+    {
+      "type": "link",
+      "association": "CollectsAt",
+      "domain": [
+        "BinStop",
+        "RouteSlot"
+      ]
+    }
+  ],
+  "objective": {
+    "expression": "CollectionRun.allInstances->any(true).totalTravelTime()",
+    "minimise": true,
+    "max_degree": 6
+  }
+}
+
+

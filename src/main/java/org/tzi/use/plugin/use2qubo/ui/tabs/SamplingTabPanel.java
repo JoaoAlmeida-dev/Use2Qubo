@@ -42,7 +42,7 @@ public class SamplingTabPanel extends JSplitPane {
             QuboResult result, MatrixTabPanel matrixTabPanel, Runnable switchToMatrixTab) {
         // Sample vectors are always over the original decision variables (never ancillas, which
         // only exist post-quadratization) — do not use result.nVars here once ancillas are present.
-        int n = samples.isEmpty() ? result.nVars : samples.get(0).vector.length;
+        int n = result.nVars - result.nAncillaVars;
 
         int constCount = 0, linearCount = 0, quadCount = 0;
         // Count of probes per degree ≥ 3, keyed by degree (3, 4, ...).
@@ -101,7 +101,7 @@ public class SamplingTabPanel extends JSplitPane {
 
     private static JTable buildTable(List<SampleRecord> samples, QuboResult result,
             MatrixTabPanel matrixTabPanel, Runnable switchToMatrixTab) {
-        int n = samples.isEmpty() ? result.nVars : samples.get(0).vector.length;
+        int n = result.nVars - result.nAncillaVars;
 
         // Column headers: #, Phase, x0…xn-1, Value, Derived
         int colCount = 3 + n + 1;
@@ -118,10 +118,11 @@ public class SamplingTabPanel extends JSplitPane {
 
         for (int k = 0; k < samples.size(); k++) {
             SampleRecord sr = samples.get(k);
+            int[] vec = sr.toVector(n);
             Object[] row = new Object[colCount];
             row[0] = k;
             row[1] = sr.phase;
-            for (int i = 0; i < n; i++) row[2 + i] = sr.vector[i];
+            for (int i = 0; i < n; i++) row[2 + i] = vec[i];
             row[2 + n] = String.format("%.4f", sr.rawValue);
             row[3 + n] = derivedLabel(sr);
             model.addRow(row);

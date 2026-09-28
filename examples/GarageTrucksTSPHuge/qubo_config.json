@@ -1,0 +1,20 @@
+{
+  "decision_var_associations": [
+    "VisitAt"
+  ],
+  "decision_vars": [
+    {
+      "type": "link",
+      "association": "VisitAt",
+      "domain": [
+        "Waypoint",
+        "Position"
+      ]
+    }
+  ],
+  "objective": {
+    "expression": "Schedule.allInstances->any(true).totalCost()",
+    "minimise": true,
+    "max_degree": 4
+  }
+}

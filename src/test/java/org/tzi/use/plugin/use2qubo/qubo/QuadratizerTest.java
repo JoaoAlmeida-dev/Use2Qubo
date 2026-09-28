@@ -2,7 +2,7 @@ package org.tzi.use.plugin.use2qubo.qubo;
 
 import org.junit.jupiter.api.Test;
 import org.tzi.use.plugin.use2qubo.qubo.engine.Quadratizer;
-import org.tzi.use.plugin.use2qubo.qubo.engine.VarSet;
+import org.tzi.use.plugin.use2qubo.qubo.engine.sampling.VarSet;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,14 +33,10 @@ class QuadratizerTest {
             int[] pair = r.ancillaPairs.get(k);
             full[x.length + k] = full[pair[0]] * full[pair[1]];
         }
-        double result = r.constant;
-        for (int i = 0; i < r.lin.length; i++) result += r.lin[i] * full[i];
-        for (int i = 0; i < r.quad.length; i++) {
-            for (int j = i + 1; j < r.quad.length; j++) {
-                result += r.quad[i][j] * full[i] * full[j];
-            }
-        }
-        return result;
+        double[] result = {r.constant};
+        for (int i = 0; i < r.lin.length; i++) result[0] += r.lin[i] * full[i];
+        r.forEachQuadTerm((i, j, coeff) -> result[0] += coeff * full[i] * full[j]);
+        return result[0];
     }
 
     /** For every binary vector, the quadratized form (with ancillas set to their exact product)
@@ -122,7 +118,8 @@ class QuadratizerTest {
 
     @Test
     void varSetCombinationsMatchLexicographicPairwiseOrder() {
-        List<VarSet> combos = VarSet.combinations(4, 2);
+        List<VarSet> combos = new ArrayList<>();
+        for (VarSet vs : VarSet.combinations(4, 2)) combos.add(vs);
         List<String> asStrings = new ArrayList<>();
         for (VarSet vs : combos) asStrings.add(vs.toString());
         assertEquals(6, combos.size());

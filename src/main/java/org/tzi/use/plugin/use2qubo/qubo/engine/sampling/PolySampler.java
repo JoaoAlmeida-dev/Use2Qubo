@@ -1,0 +1,186 @@
+package org.tzi.use.plugin.use2qubo.qubo.engine.sampling;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+
+import org.tzi.use.plugin.use2qubo.qubo.engine.ProgressEvent;
+import org.tzi.use.plugin.use2qubo.qubo.result.SampleRecord;
+import org.tzi.use.plugin.use2qubo.util.Combinatorics;
+
+/**
+ * Generalised AutoQUBO sampling (Moraglio et al., GECCO '22, Algorithm 1): samples a black-box
+ * function at all {@code m}-hot binary vectors for {@code fromDegree <= m <= toDegree} and
+ * recovers the coefficients of its exact pseudo-Boolean polynomial representation by
+ * inclusion-exclusion, {@code c_J = f(x^J) - sum_{I subsetneq J} c_I}.
+ *
+ * <p>Degree 2 (the historical special case) reduces to exactly the original pairwise sampling
+ * loop: {@code c_i = f(e_i) - c}, {@code c_ij = f(e_i+e_j) - c_i - c_j - c}. Escalating to a
+ * higher {@code toDegree} reuses previously computed lower-degree coefficients rather than
+ * resampling them.
+ */
+public final class PolySampler {
+
+    private PolySampler() {}
+
+    @FunctionalInterface
+    public interface Evaluable {
+        double eval(int[] x) throws Exception;
+    }
+
+    public static final class Result {
+        /** Exact pseudo-Boolean polynomial coefficients for every sampled degree, keyed by term. */
+        public final Map<VarSet, Double> coeffs;
+        /** One record per sampled point, in sampling order. */
+        public final List<SampleRecord> samples;
+
+        public Result(Map<VarSet, Double> coeffs, List<SampleRecord> samples) {
+            this.coeffs = coeffs;
+            this.samples = samples;
+        }
+    }
+
+    /**
+     * @param n              number of binary decision variables
+     * @param fromDegree     lowest degree to sample this call (0 for a fresh derivation)
+     * @param toDegree       highest degree to sample this call (inclusive)
+     * @param existingCoeffs coefficients already known for all degrees below {@code fromDegree};
+     *                       carried into the result unchanged and used for inclusion-exclusion subtraction
+     * @param samplePrefix   {@code "cost"} or {@code "pen"} — matches historical {@link SampleRecord#phase} naming
+     * @param evaluator      the black-box function to sample (cost or penalty, no OCL access needed here)
+     */
+    public static Result sample(int n, int fromDegree, int toDegree, Map<VarSet, Double> existingCoeffs,
+            String samplePrefix, Evaluable evaluator, Consumer<String> progress) throws Exception {
+        return sample(n, fromDegree, toDegree, existingCoeffs, samplePrefix, evaluator, progress, null, true);
+    }
+
+    /**
+     * @param structuredProgress optional callback that receives a {@link ProgressEvent} per
+     *                            sampled term, alongside the free-form {@code progress} callback;
+     *                            may be {@code null}. Called from the calling thread.
+     */
+    public static Result sample(int n, int fromDegree, int toDegree, Map<VarSet, Double> existingCoeffs,
+            String samplePrefix, Evaluable evaluator, Consumer<String> progress,
+            Consumer<ProgressEvent> structuredProgress) throws Exception {
+        return sample(n, fromDegree, toDegree, existingCoeffs, samplePrefix, evaluator, progress, structuredProgress, true);
+    }
+
+    /**
+     * @param collectSamples whether to retain a {@link SampleRecord} per sampled point (needed by
+     *                        the GUI's Sampling tab); {@code false} skips building them entirely —
+     *                        the CLI export path never reads them, and at large n retaining one
+     *                        record per combination is the dominant memory cost.
+     */
+    public static Result sample(int n, int fromDegree, int toDegree, Map<VarSet, Double> existingCoeffs,
+            String samplePrefix, Evaluable evaluator, Consumer<String> progress,
+            Consumer<ProgressEvent> structuredProgress, boolean collectSamples) throws Exception {
+        Map<VarSet, Double> coeffs = new LinkedHashMap<>(existingCoeffs);
+        List<SampleRecord> samples = collectSamples ? new ArrayList<>() : Collections.emptyList();
+
+        for (int m = fromDegree; m <= toDegree; m++) {
+            int total = Combinatorics.binomial(n, m);
+            int count = 0;
+            for (VarSet J : VarSet.combinations(n, m)) {
+                count++;
+                report(progress, "Sampling: " + samplePrefix + " degree " + m
+                        + " (" + count + "/" + total + ")...");
+                reportStructured(structuredProgress, new ProgressEvent(
+                        "Sampling " + samplePrefix + " degree " + m, samplePrefix, m, count, total));
+                int[] x = J.toVector(n);
+                double raw = evaluator.eval(x);
+
+                double sub = 0.0;
+                for (VarSet I : J.properSubsets()) {
+                    sub += coeffs.getOrDefault(I, 0.0);
+                }
+                double c = raw - sub;
+                coeffs.put(J, c);
+                if (collectSamples) samples.add(toSampleRecord(J, samplePrefix, raw));
+            }
+        }
+        return new Result(coeffs, samples);
+    }
+
+    /**
+     * Pool-aware variant of {@link #sample}: batch-evaluates every {@code C(n,m)} combo for each
+     * degree via {@link SandboxWorkerPool#evaluate}, which parallelises across per-thread sandbox
+     * clones instead of the sequential single-{@code Evaluable} loop above. Inclusion-exclusion
+     * subtraction still runs single-threaded after each batch — cheap map lookups, no benefit from
+     * parallelising, and it must run after the batch anyway since it reads that batch's own results.
+     *
+     * @param pool   sandbox worker pool, already built and reused across cost/penalty passes and
+     *               every degree-escalation iteration by the caller
+     * @param kind   which black-box function this call samples (cost or penalty)
+     */
+    public static Result sample(int n, int fromDegree, int toDegree, Map<VarSet, Double> existingCoeffs,
+            String samplePrefix, SandboxWorkerPool pool, SandboxWorkerPool.EvalKind kind,
+            Consumer<String> progress, Consumer<ProgressEvent> structuredProgress, boolean collectSamples)
+            throws Exception {
+        Map<VarSet, Double> coeffs = new LinkedHashMap<>(existingCoeffs);
+        List<SampleRecord> samples = collectSamples ? new ArrayList<>() : Collections.emptyList();
+
+        for (int m = fromDegree; m <= toDegree; m++) {
+            int total = Combinatorics.binomial(n, m);
+            double[] raw = pool.evaluate(n, m, total, kind, samplePrefix, m, progress, structuredProgress);
+
+            // Same lazy enumeration order the pool's chunks were generated in (see
+            // VarSet#combinationsRange's javadoc) — raw[i] lines up with the i-th combo here
+            // without ever materialising the full C(n,m) combination list.
+            int i = 0;
+            for (VarSet J : VarSet.combinations(n, m)) {
+                double sub = 0.0;
+                for (VarSet I : J.properSubsets()) {
+                    sub += coeffs.getOrDefault(I, 0.0);
+                }
+                double c = raw[i] - sub;
+                coeffs.put(J, c);
+                if (collectSamples) samples.add(toSampleRecord(J, samplePrefix, raw[i]));
+                i++;
+            }
+        }
+        return new Result(coeffs, samples);
+    }
+
+    private static SampleRecord toSampleRecord(VarSet J, String prefix, double rawValue) {
+        int[] vars = J.vars();
+        int derivedI;
+        int derivedJ;
+        String phase;
+        switch (vars.length) {
+            case 0:
+                derivedI = -1;
+                derivedJ = -1;
+                phase = prefix + "_const";
+                break;
+            case 1:
+                derivedI = vars[0];
+                derivedJ = vars[0];
+                phase = prefix + "_lin_i=" + vars[0];
+                break;
+            case 2:
+                derivedI = vars[0];
+                derivedJ = vars[1];
+                phase = prefix + "_quad_i=" + vars[0] + "_j=" + vars[1];
+                break;
+            default:
+                derivedI = -2;
+                derivedJ = -2;
+                StringBuilder sb = new StringBuilder(prefix).append("_deg").append(vars.length);
+                for (int v : vars) sb.append("_").append(v);
+                phase = sb.toString();
+                break;
+        }
+        return new SampleRecord(phase, rawValue, derivedI, derivedJ, vars);
+    }
+
+    private static void report(Consumer<String> cb, String msg) {
+        if (cb != null) cb.accept(msg);
+    }
+
+    private static void reportStructured(Consumer<ProgressEvent> cb, ProgressEvent e) {
+        if (cb != null) cb.accept(e);
+    }
+}

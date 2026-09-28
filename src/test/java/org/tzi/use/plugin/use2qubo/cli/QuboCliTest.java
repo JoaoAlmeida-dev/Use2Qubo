@@ -6,9 +6,11 @@ import org.tzi.use.plugin.use2qubo.testutil.UseFixtures;
 import org.tzi.use.uml.mm.MModel;
 import org.tzi.use.uml.sys.MSystem;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -112,6 +114,33 @@ class QuboCliTest {
         assertTrue(out.isFile());
         String json = Files.readString(out.toPath());
         assertTrue(json.contains("\"exact\": true"), json);
+    }
+
+    @Test
+    void run_stdoutContainsExactlyOneSummaryLine(@TempDir Path tempDir) throws Exception {
+        File out = tempDir.resolve("selection-qubo.json").toFile();
+
+        PrintStream originalOut = System.out;
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(captured, true, "UTF-8"));
+        int exitCode;
+        try {
+            exitCode = QuboCli.run(new String[] {
+                    "--model", UseFixtures.selectionUse().getPath(),
+                    "--cmd", UseFixtures.selectionCmd().getPath(),
+                    "--out", out.getPath()
+            });
+        } finally {
+            System.setOut(originalOut);
+        }
+
+        assertEquals(0, exitCode);
+        String stdout = captured.toString("UTF-8");
+        String[] lines = stdout.split("\\R", -1);
+        // exactly one summary line, plus a trailing empty string from println's final newline
+        assertEquals(2, lines.length, "stdout should contain exactly one line: " + stdout);
+        assertTrue(lines[0].matches("nVars=\\d+ exact=(PASS|FAIL) derivationMs=\\d+ out=.*"), lines[0]);
+        assertEquals("", lines[1]);
     }
 
     // -----------------------------------------------------------------

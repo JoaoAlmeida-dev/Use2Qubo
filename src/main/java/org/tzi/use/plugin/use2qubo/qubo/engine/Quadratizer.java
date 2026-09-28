@@ -1,5 +1,6 @@
 package org.tzi.use.plugin.use2qubo.qubo.engine;
 
+import org.tzi.use.plugin.use2qubo.qubo.engine.sampling.VarSet;
 import org.tzi.use.plugin.use2qubo.util.QuboConstants;
 
 import java.util.ArrayList;
@@ -32,6 +33,12 @@ public final class Quadratizer {
 
     private Quadratizer() {}
 
+    /** A single nonzero quadratic coefficient {@code coeff} for the pair {@code (i,j)}, {@code i<j}. */
+    @FunctionalInterface
+    public interface QuadTermConsumer {
+        void accept(int i, int j, double coeff);
+    }
+
     public static final class Result {
         /** Number of ancillary variables introduced (0 if the input was already degree ≤ 2). */
         public final int nAncilla;
@@ -39,8 +46,11 @@ public final class Quadratizer {
         public final double constant;
         /** Linear coefficients, length {@code n + nAncilla}. */
         public final double[] lin;
-        /** Quadratic coefficients, {@code (n+nAncilla) x (n+nAncilla)}; only {@code [i][j]}, i&lt;j, populated. */
-        public final double[][] quad;
+        /** Sparse quadratic coefficients over {@code (n+nAncilla) x (n+nAncilla)}, keyed by
+         *  {@code pairKey(i,j)}, i&lt;j — a dense matrix here would be O((n+nAncilla)^2) even
+         *  though the problem itself (and the number of nonzero terms) is typically far sparser.
+         *  Iterate via {@link #forEachQuadTerm}. */
+        private final Map<Long, Double> quad;
         /** Display labels for the ancillas, e.g. {@code "anc(RouteRoad(r1,e2),RouteRoad(r1,e3))"}. */
         public final List<String> ancillaLabels;
         /** For each ancilla k, the pair {@code {a,b}} (variable-space indices, possibly earlier
@@ -49,7 +59,7 @@ public final class Quadratizer {
         /** The penalty weight applied to every ancilla-consistency term. */
         public final double penaltyWeight;
 
-        Result(int nAncilla, double constant, double[] lin, double[][] quad,
+        Result(int nAncilla, double constant, double[] lin, Map<Long, Double> quad,
                List<String> ancillaLabels, List<int[]> ancillaPairs, double penaltyWeight) {
             this.nAncilla      = nAncilla;
             this.constant      = constant;
@@ -58,6 +68,14 @@ public final class Quadratizer {
             this.ancillaLabels = ancillaLabels;
             this.ancillaPairs  = ancillaPairs;
             this.penaltyWeight = penaltyWeight;
+        }
+
+        /** Visits every nonzero quadratic coefficient, {@code i<j}. */
+        public void forEachQuadTerm(QuadTermConsumer consumer) {
+            for (Map.Entry<Long, Double> e : quad.entrySet()) {
+                int[] ij = unpackKey(e.getKey());
+                consumer.accept(ij[0], ij[1], e.getValue());
+            }
         }
     }
 
@@ -115,14 +133,12 @@ public final class Quadratizer {
         double delta = totalAbs + QuboConstants.QUADRATIZATION_PENALTY_MARGIN;
 
         double[] lin = new double[total];
-        double[][] quad = new double[total][total];
         for (Map.Entry<Integer, Double> e : linAcc.entrySet()) {
             lin[e.getKey()] += e.getValue();
         }
-        for (Map.Entry<Long, Double> e : quadAcc.entrySet()) {
-            int[] ij = unpackKey(e.getKey());
-            quad[ij[0]][ij[1]] += e.getValue();
-        }
+        // quadAcc already holds every degree-2 term from the reduction above; the ancilla-
+        // consistency penalties below are merged into that same sparse map rather than a dense
+        // (n+nAncilla)^2 array.
 
         List<String> ancillaLabels = new ArrayList<>(nAncilla);
         for (int k = 0; k < nAncilla; k++) {
@@ -132,13 +148,13 @@ public final class Quadratizer {
             ancillaLabels.add("anc(" + label(a, varLabels, ancillaLabels, n) + ","
                     + label(b, varLabels, ancillaLabels, n) + ")");
             // Rosenberg penalty: delta * (x_a*x_b - 2*x_a*y - 2*x_b*y + 3*y), zero iff y = x_a AND x_b.
-            addQuad(quad, a, b, delta);
-            addQuad(quad, a, y, -2 * delta);
-            addQuad(quad, b, y, -2 * delta);
+            addQuad(quadAcc, a, b, delta);
+            addQuad(quadAcc, a, y, -2 * delta);
+            addQuad(quadAcc, b, y, -2 * delta);
             lin[y] += 3 * delta;
         }
 
-        return new Result(nAncilla, constant, lin, quad, ancillaLabels, ancillaPairs, delta);
+        return new Result(nAncilla, constant, lin, quadAcc, ancillaLabels, ancillaPairs, delta);
     }
 
     private static String label(int idx, List<String> varLabels, List<String> ancillaLabelsSoFar, int n) {
@@ -146,10 +162,8 @@ public final class Quadratizer {
         return ancillaLabelsSoFar.get(idx - n);
     }
 
-    private static void addQuad(double[][] quad, int a, int b, double delta) {
-        int i = Math.min(a, b);
-        int j = Math.max(a, b);
-        quad[i][j] += delta;
+    private static void addQuad(Map<Long, Double> quad, int a, int b, double delta) {
+        quad.merge(pairKey(a, b), delta, Double::sum);
     }
 
     private static long pairKey(int a, int b) {
