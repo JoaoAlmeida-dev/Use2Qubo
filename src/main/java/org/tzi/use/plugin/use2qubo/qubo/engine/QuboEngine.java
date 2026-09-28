@@ -71,6 +71,65 @@ public class QuboEngine {
 
     private static final EscalationConfirm ALWAYS_PROCEED = (from, to, expected) -> true;
 
+    /**
+     * Optional tuning knobs for {@link #derive}, all defaulted via {@link #defaults()}. Immutable;
+     * each {@code withX} returns a new instance rather than mutating in place.
+     */
+    public static final class DeriveOptions {
+        /** Human-readable step labels; may be {@code null}. Called from the calling thread. */
+        public final Consumer<String> progress;
+        /** {@link ProgressEvent}s for phase transitions and per-sample counts; may be {@code null}.
+         *  Called from the calling thread. */
+        public final Consumer<ProgressEvent> structuredProgress;
+        /** Asked before escalating to a higher degree; declining stops escalation. */
+        public final EscalationConfirm confirm;
+        /** Whether to retain per-point {@link SampleRecord}s for the result's
+         *  {@code costSamples}/{@code penaltySamples} (needed by the GUI's Sampling tab).
+         *  {@code false} for headless/CLI derivation, where nothing reads them and retaining one
+         *  record per sampled combination is the dominant memory cost at large n. */
+        public final boolean collectSamples;
+        /** Explicit {@code SandboxWorkerPool} worker count, or {@code null} to fall back to the
+         *  pool's own {@code min(availableProcessors(), MAX_SAMPLE_WORKERS)} sizing. An explicit
+         *  value bypasses that cap — the caller (e.g. the CLI's {@code --workers} flag) asked for
+         *  it directly. */
+        public final Integer workerOverride;
+
+        private DeriveOptions(Consumer<String> progress, Consumer<ProgressEvent> structuredProgress,
+                               EscalationConfirm confirm, boolean collectSamples, Integer workerOverride) {
+            this.progress = progress;
+            this.structuredProgress = structuredProgress;
+            this.confirm = confirm;
+            this.collectSamples = collectSamples;
+            this.workerOverride = workerOverride;
+        }
+
+        /** {@code progress=null, structuredProgress=null, confirm=ALWAYS_PROCEED,
+         *  collectSamples=true, workerOverride=null}. */
+        public static DeriveOptions defaults() {
+            return new DeriveOptions(null, null, ALWAYS_PROCEED, true, null);
+        }
+
+        public DeriveOptions withProgress(Consumer<String> progress) {
+            return new DeriveOptions(progress, structuredProgress, confirm, collectSamples, workerOverride);
+        }
+
+        public DeriveOptions withStructuredProgress(Consumer<ProgressEvent> structuredProgress) {
+            return new DeriveOptions(progress, structuredProgress, confirm, collectSamples, workerOverride);
+        }
+
+        public DeriveOptions withConfirm(EscalationConfirm confirm) {
+            return new DeriveOptions(progress, structuredProgress, confirm, collectSamples, workerOverride);
+        }
+
+        public DeriveOptions withCollectSamples(boolean collectSamples) {
+            return new DeriveOptions(progress, structuredProgress, confirm, collectSamples, workerOverride);
+        }
+
+        public DeriveOptions withWorkerOverride(Integer workerOverride) {
+            return new DeriveOptions(progress, structuredProgress, confirm, collectSamples, workerOverride);
+        }
+    }
+
     /** Result of {@link #evaluateTrue}: the true OCL objective/penalty for one binary vector,
      *  as opposed to the derived QUBO polynomial's approximation of the same quantities. */
     public static final class TrueEval {
@@ -121,116 +180,28 @@ public class QuboEngine {
     /**
      * Derives the QUBO Q-matrix from the given context.
      *
-     * @param ctx      QUBO derivation context (model, state, config)
-     * @param progress optional callback that receives human-readable step labels;
-     *                 may be {@code null}. Called from the calling thread.
+     * @param ctx     QUBO derivation context (model, state, config)
+     * @param options tuning knobs; see {@link DeriveOptions#defaults()} for defaults
      */
-    public static QuboResult derive(QuboContext ctx, Consumer<String> progress) throws Exception {
-        return derive(ctx, progress, ALWAYS_PROCEED);
-    }
-
-    /**
-     * Derives the QUBO Q-matrix from the given context, asking {@code confirm} before each
-     * degree-escalation step.
-     *
-     * @param ctx      QUBO derivation context (model, state, config)
-     * @param progress optional callback that receives human-readable step labels;
-     *                 may be {@code null}. Called from the calling thread.
-     * @param confirm  asked before escalating to a higher degree; declining stops escalation
-     */
-    public static QuboResult derive(QuboContext ctx, Consumer<String> progress,
-                                     EscalationConfirm confirm) throws Exception {
-        return derive(ctx, progress, null, confirm);
-    }
-
-    /**
-     * Derives the QUBO Q-matrix from the given context, asking {@code confirm} before each
-     * degree-escalation step and reporting structured progress alongside the free-form
-     * {@code progress} callback.
-     *
-     * @param ctx                 QUBO derivation context (model, state, config)
-     * @param progress            optional callback that receives human-readable step labels;
-     *                            may be {@code null}. Called from the calling thread.
-     * @param structuredProgress  optional callback that receives {@link ProgressEvent}s for
-     *                            phase transitions and per-sample counts; may be {@code null}.
-     *                            Called from the calling thread.
-     * @param confirm             asked before escalating to a higher degree; declining stops escalation
-     */
-    public static QuboResult derive(QuboContext ctx, Consumer<String> progress,
-                                     Consumer<ProgressEvent> structuredProgress,
-                                     EscalationConfirm confirm) throws Exception {
-        return derive(ctx, progress, structuredProgress, confirm, true);
-    }
-
-    /**
-     * Derives the QUBO Q-matrix from the given context, asking {@code confirm} before each
-     * degree-escalation step and reporting structured progress alongside the free-form
-     * {@code progress} callback.
-     *
-     * @param ctx                 QUBO derivation context (model, state, config)
-     * @param progress            optional callback that receives human-readable step labels;
-     *                            may be {@code null}. Called from the calling thread.
-     * @param structuredProgress  optional callback that receives {@link ProgressEvent}s for
-     *                            phase transitions and per-sample counts; may be {@code null}.
-     *                            Called from the calling thread.
-     * @param confirm             asked before escalating to a higher degree; declining stops escalation
-     * @param collectSamples      whether to retain per-point {@link SampleRecord}s for the result's
-     *                            {@code costSamples}/{@code penaltySamples} (needed by the GUI's
-     *                            Sampling tab). {@code false} for headless/CLI derivation, where
-     *                            nothing reads them and retaining one record per sampled combination
-     *                            is the dominant memory cost at large n.
-     */
-    public static QuboResult derive(QuboContext ctx, Consumer<String> progress,
-                                     Consumer<ProgressEvent> structuredProgress,
-                                     EscalationConfirm confirm, boolean collectSamples) throws Exception {
-        return derive(ctx, progress, structuredProgress, confirm, collectSamples, null);
-    }
-
-    /**
-     * Derives the QUBO Q-matrix from the given context, asking {@code confirm} before each
-     * degree-escalation step and reporting structured progress alongside the free-form
-     * {@code progress} callback.
-     *
-     * @param ctx                 QUBO derivation context (model, state, config)
-     * @param progress            optional callback that receives human-readable step labels;
-     *                            may be {@code null}. Called from the calling thread.
-     * @param structuredProgress  optional callback that receives {@link ProgressEvent}s for
-     *                            phase transitions and per-sample counts; may be {@code null}.
-     *                            Called from the calling thread.
-     * @param confirm             asked before escalating to a higher degree; declining stops escalation
-     * @param collectSamples      whether to retain per-point {@link SampleRecord}s for the result's
-     *                            {@code costSamples}/{@code penaltySamples} (needed by the GUI's
-     *                            Sampling tab). {@code false} for headless/CLI derivation, where
-     *                            nothing reads them and retaining one record per sampled combination
-     *                            is the dominant memory cost at large n.
-     * @param workerOverride      explicit {@code SandboxWorkerPool} worker count, or {@code null} to
-     *                            fall back to the pool's own {@code min(availableProcessors(),
-     *                            MAX_SAMPLE_WORKERS)} sizing. An explicit value bypasses that cap —
-     *                            the caller (e.g. the CLI's {@code --workers} flag) asked for it directly.
-     */
-    public static QuboResult derive(QuboContext ctx, Consumer<String> progress,
-                                     Consumer<ProgressEvent> structuredProgress,
-                                     EscalationConfirm confirm, boolean collectSamples,
-                                     Integer workerOverride) throws Exception {
+    public static QuboResult derive(QuboContext ctx, DeriveOptions options) throws Exception {
         int n = ctx.nVars;
         PluginLog.info("QuboEngine.derive: nVars=" + n + ", maxDegree=" + ctx.maxDegree);
 
-        ProgressEvent.reportPhase(progress, structuredProgress, "Building variable index…");
+        ProgressEvent.reportPhase(options.progress, options.structuredProgress, "Building variable index…");
         List<DVPair> flatVars = VarIndexBuilder.buildFlatVars(ctx);
         if (flatVars.size() != n) {
             throw new IllegalStateException(
                     "Flat var count " + flatVars.size() + " != nVars " + n);
         }
         List<String> varLabels = VarIndexBuilder.buildVarLabels(flatVars);
-        Expression objExpr = ObjectiveEvaluator.compileObjective(ctx, progress, structuredProgress);
+        Expression objExpr = ObjectiveEvaluator.compileObjective(ctx, options.progress, options.structuredProgress);
         Evaluator evaluator = new Evaluator();
         List<PenaltyEvaluator.PenaltyTask> penaltyTasks = PenaltyEvaluator.buildPenaltyTasks(ctx);
 
         Map<String, Set<MLink>> savedLinks = DecisionLinkSampler.saveAndStripLinks(ctx);
         try {
             QuboResult result = deriveWithClearedState(ctx, n, flatVars, varLabels,
-                    objExpr, evaluator, penaltyTasks, progress, structuredProgress, savedLinks, confirm,
-                    collectSamples, workerOverride);
+                    objExpr, evaluator, penaltyTasks, savedLinks, options);
             PluginLog.info("Derive complete: " + result);
             return result;
         } finally {
@@ -243,9 +214,13 @@ public class QuboEngine {
     private static QuboResult deriveWithClearedState(QuboContext ctx, int n,
             List<DVPair> flatVars, List<String> varLabels, Expression objExpr, Evaluator evaluator,
             List<PenaltyEvaluator.PenaltyTask> penaltyTasks,
-            Consumer<String> progress, Consumer<ProgressEvent> structuredProgress,
-            Map<String, Set<MLink>> savedLinks, EscalationConfirm confirm, boolean collectSamples,
-            Integer workerOverride) throws Exception {
+            Map<String, Set<MLink>> savedLinks, DeriveOptions options) throws Exception {
+
+        Consumer<String> progress = options.progress;
+        Consumer<ProgressEvent> structuredProgress = options.structuredProgress;
+        EscalationConfirm confirm = options.confirm;
+        boolean collectSamples = options.collectSamples;
+        Integer workerOverride = options.workerOverride;
 
         int maxDegree = Math.max(2, ctx.maxDegree);
 

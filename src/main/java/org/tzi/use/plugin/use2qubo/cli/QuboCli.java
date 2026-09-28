@@ -78,12 +78,13 @@ public final class QuboCli {
         ProgressBar bar = ProgressBar.forStderr();
         // Free-form messages go to the debug log only (not stderr) — ProgressBar is the sole
         // visible progress stream, so the two never interleave/duplicate on the console.
-        QuboResult result = QuboEngine.derive(ctx,
-                msg -> PluginLog.debug("[use2qubo-cli] " + msg),
-                bar,
-                (from, to, expected) -> true,
-                false, // headless export never reads costSamples/penaltySamples — don't retain them
-                parsed.workers);
+        QuboResult result = QuboEngine.derive(ctx, QuboEngine.DeriveOptions.defaults()
+                .withProgress(msg -> PluginLog.debug("[use2qubo-cli] " + msg))
+                .withStructuredProgress(bar)
+                .withConfirm((from, to, expected) -> true)
+                // headless export never reads costSamples/penaltySamples — don't retain them
+                .withCollectSamples(false)
+                .withWorkerOverride(parsed.workers));
         long ms = (System.nanoTime() - t0) / 1_000_000;
         result = result.withDerivationMs(ms);
 

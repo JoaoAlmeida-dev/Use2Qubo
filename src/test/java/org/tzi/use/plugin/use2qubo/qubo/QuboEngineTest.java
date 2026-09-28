@@ -34,7 +34,7 @@ class QuboEngineTest {
         MSystem system = UseFixtures.buildSystem(UseFixtures.selectionUse(), UseFixtures.selectionCmd());
         QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.selectionConfig().toPath());
 
-        QuboResult result = QuboEngine.derive(ctx, null);
+        QuboResult result = QuboEngine.derive(ctx, QuboEngine.DeriveOptions.defaults());
 
         assertTrue(result.exact);
         assertEquals(3, result.polyDegree);
@@ -63,7 +63,7 @@ class QuboEngineTest {
         MSystem system = UseFixtures.buildSystem(UseFixtures.allOrNothingUse(), UseFixtures.allOrNothingCmd());
         QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.allOrNothingConfig().toPath());
 
-        QuboResult result = QuboEngine.derive(ctx, null);
+        QuboResult result = QuboEngine.derive(ctx, QuboEngine.DeriveOptions.defaults());
 
         assertFalse(result.exact);
         assertEquals(3, result.polyDegree);
@@ -76,7 +76,8 @@ class QuboEngineTest {
         MSystem system = UseFixtures.buildSystem(UseFixtures.allOrNothingUse(), UseFixtures.allOrNothingCmd());
         QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.allOrNothingConfig().toPath());
 
-        QuboResult result = QuboEngine.derive(ctx, null, (from, to, expected) -> false);
+        QuboResult result = QuboEngine.derive(ctx, QuboEngine.DeriveOptions.defaults()
+                .withConfirm((from, to, expected) -> false));
 
         assertFalse(result.exact);
         assertEquals(2, result.polyDegree);
@@ -87,11 +88,12 @@ class QuboEngineTest {
     void derive_acceptedEscalation_matchesLegacyBehaviour() throws Exception {
         MSystem systemA = UseFixtures.buildSystem(UseFixtures.allOrNothingUse(), UseFixtures.allOrNothingCmd());
         QuboContext ctxA = QuboContextBuilder.build(systemA, UseFixtures.allOrNothingConfig().toPath());
-        QuboResult legacy = QuboEngine.derive(ctxA, null);
+        QuboResult legacy = QuboEngine.derive(ctxA, QuboEngine.DeriveOptions.defaults());
 
         MSystem systemB = UseFixtures.buildSystem(UseFixtures.allOrNothingUse(), UseFixtures.allOrNothingCmd());
         QuboContext ctxB = QuboContextBuilder.build(systemB, UseFixtures.allOrNothingConfig().toPath());
-        QuboResult confirmed = QuboEngine.derive(ctxB, null, (from, to, expected) -> true);
+        QuboResult confirmed = QuboEngine.derive(ctxB, QuboEngine.DeriveOptions.defaults()
+                .withConfirm((from, to, expected) -> true));
 
         assertEquals(legacy.exact, confirmed.exact);
         assertEquals(legacy.polyDegree, confirmed.polyDegree);
@@ -106,12 +108,12 @@ class QuboEngineTest {
         int[] fromDegree = {-1};
         int[] toDegree = {-1};
         long[] expectedSamples = {-1};
-        QuboEngine.derive(ctx, null, (from, to, expected) -> {
+        QuboEngine.derive(ctx, QuboEngine.DeriveOptions.defaults().withConfirm((from, to, expected) -> {
             fromDegree[0] = from;
             toDegree[0] = to;
             expectedSamples[0] = expected;
             return true;
-        });
+        }));
 
         assertEquals(2, fromDegree[0]);
         assertEquals(3, toDegree[0]);
@@ -123,7 +125,7 @@ class QuboEngineTest {
         MSystem system = UseFixtures.buildSystem(UseFixtures.allOrNothingUse(), UseFixtures.allOrNothingCmd());
         QuboContext ctx = QuboContextBuilder.build(system, UseFixtures.allOrNothingConfig().toPath());
 
-        QuboEngine.derive(ctx, null);
+        QuboEngine.derive(ctx, QuboEngine.DeriveOptions.defaults());
 
         assertNotSame(system, ctx.system);
         assertNotSame(system.state(), ctx.state);
