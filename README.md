@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/use2qubo-logo.svg" alt="USE2QUBO logo" width="160">
+</p>
+
 # USE2QUBO Plugin
 
 [![CI](https://github.com/JoaoAlmeida-dev/Use2Qubo/actions/workflows/ci.yml/badge.svg)](https://github.com/JoaoAlmeida-dev/Use2Qubo/actions/workflows/ci.yml)

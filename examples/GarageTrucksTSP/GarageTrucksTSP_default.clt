@@ -13,8 +13,8 @@
     <node id="TravelTime" sizeCalculated="true" type="Class">
         <name>TravelTime</name>
         <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToCorner">
-            <userOffsetX>0.0</userOffsetX>
-            <userOffsetY>0.0</userOffsetY>
+            <userOffsetX>57.0</userOffsetX>
+            <userOffsetY>-49.0</userOffsetY>
             <basisDeltaX>ABSOLUTE</basisDeltaX>
             <deltaX>0.0</deltaX>
             <maxDeltaX>1.7976931348623157E308</maxDeltaX>
@@ -29,56 +29,40 @@
     <node id="BinStop" sizeCalculated="true" type="Class">
         <name>BinStop</name>
         <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
-            <x>420.55353106705456</x>
-            <y>182.0</y>
-        </strategy>
-        <hidden>false</hidden>
-    </node>
-    <node id="BinClash" sizeCalculated="true" type="Class">
-        <name>BinClash</name>
-        <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
-            <x>345.77365324200207</x>
-            <y>98.0</y>
+            <x>182.43413391617509</x>
+            <y>173.46453293846338</y>
         </strategy>
         <hidden>false</hidden>
     </node>
     <node id="Stop" sizeCalculated="true" type="Class">
         <name>Stop</name>
         <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
-            <x>543.3011229349087</x>
-            <y>140.45335150188092</y>
+            <x>149.97772736969267</x>
+            <y>84.30621013554958</y>
         </strategy>
         <hidden>false</hidden>
     </node>
     <node id="CollectionRun" sizeCalculated="true" type="Class">
         <name>CollectionRun</name>
         <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
-            <x>20.046666059949743</x>
-            <y>387.0</y>
+            <x>33.32562044170152</x>
+            <y>193.0</y>
         </strategy>
         <hidden>false</hidden>
     </node>
     <node id="RouteSlot" sizeCalculated="true" type="Class">
         <name>RouteSlot</name>
         <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
-            <x>178.55384091673244</x>
-            <y>172.53281081692114</y>
-        </strategy>
-        <hidden>false</hidden>
-    </node>
-    <node id="SlotClash" sizeCalculated="true" type="Class">
-        <name>SlotClash</name>
-        <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
-            <x>280.6727351420382</x>
-            <y>375.7914933643137</y>
+            <x>327.73732621745415</x>
+            <y>165.86035388226708</y>
         </strategy>
         <hidden>false</hidden>
     </node>
     <node id="CollectsAt" sizeCalculated="true" type="Class">
         <name>CollectsAt</name>
         <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToCorner">
-            <userOffsetX>0.0</userOffsetX>
-            <userOffsetY>-18.0</userOffsetY>
+            <userOffsetX>-7.0</userOffsetX>
+            <userOffsetY>-8.0</userOffsetY>
             <basisDeltaX>ABSOLUTE</basisDeltaX>
             <deltaX>0.0</deltaX>
             <maxDeltaX>1.7976931348623157E308</maxDeltaX>
@@ -93,411 +77,9 @@
     <node id="StopType" sizeCalculated="true" type="Enumeration">
         <name>StopType</name>
         <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
-            <x>20.0</x>
-            <y>208.92744153873932</y>
+            <x>26.0</x>
+            <y>71.0</y>
         </strategy>
-        <hidden>false</hidden>
-    </node>
-    <node height="20.0" id="BinClash::DiamondNode" kind="association"
-        sizeCalculated="false" type="DiamondNode" width="40.0">
-        <name>BinClash</name>
-        <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
-            <x>320.17270454658103</x>
-            <y>146.01640540846057</y>
-        </strategy>
-        <connectedNode>BinStop</connectedNode>
-        <connectedNode>RouteSlot</connectedNode>
-        <edge type="HalfEdge">
-            <source>BinClash</source>
-            <target>RouteSlot</target>
-            <name>sa</name>
-            <properties>
-                <edgeproperty id="BinClash::sa::target::multiplicity"
-                    sizeCalculated="true" type="multiplicity"
-                    userDefined="false" visible="true">
-                    <name>1</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                        <attached>BinClash::sa::WayPoint::1</attached>
-                        <offset_x>8</offset_x>
-                        <offset_y>8</offset_y>
-                        <placement>BOTTOM</placement>
-                    </strategy>
-                    <hidden>false</hidden>
-                </edgeproperty>
-                <edgeproperty id="BinClash::sa::target::rolename"
-                    sizeCalculated="true" type="rolename"
-                    userDefined="false" visible="true">
-                    <name>sa</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                        <attached>BinClash::sa::WayPoint::1</attached>
-                        <offset_x>8</offset_x>
-                        <offset_y>8</offset_y>
-                        <placement>TOP</placement>
-                    </strategy>
-                    <hidden>false</hidden>
-                </edgeproperty>
-            </properties>
-            <waypoints>
-                <edgeproperty id="BinClash::sa::WayPoint::0"
-                    sizeCalculated="true" type="WayPoint"
-                    userDefined="false" visible="true">
-                    <name>0</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyAttachedIntersection">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                    </strategy>
-                    <id>0</id>
-                    <specialid>1</specialid>
-                    <hidden>false</hidden>
-                </edgeproperty>
-                <edgeproperty id="BinClash::sa::WayPoint::1"
-                    sizeCalculated="true" type="WayPoint"
-                    userDefined="false" visible="true">
-                    <name>1</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyAttachedIntersection">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                    </strategy>
-                    <id>1</id>
-                    <specialid>2</specialid>
-                    <hidden>false</hidden>
-                </edgeproperty>
-            </waypoints>
-            <hidden>false</hidden>
-        </edge>
-        <edge type="HalfEdge">
-            <source>BinClash</source>
-            <target>RouteSlot</target>
-            <name>sb</name>
-            <properties>
-                <edgeproperty id="BinClash::sb::target::rolename"
-                    sizeCalculated="true" type="rolename"
-                    userDefined="false" visible="true">
-                    <name>sb</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                        <attached>BinClash::sb::WayPoint::1</attached>
-                        <offset_x>8</offset_x>
-                        <offset_y>8</offset_y>
-                        <placement>TOP</placement>
-                    </strategy>
-                    <hidden>false</hidden>
-                </edgeproperty>
-                <edgeproperty id="BinClash::sb::target::multiplicity"
-                    sizeCalculated="true" type="multiplicity"
-                    userDefined="false" visible="true">
-                    <name>1</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                        <attached>BinClash::sb::WayPoint::1</attached>
-                        <offset_x>8</offset_x>
-                        <offset_y>8</offset_y>
-                        <placement>BOTTOM</placement>
-                    </strategy>
-                    <hidden>false</hidden>
-                </edgeproperty>
-            </properties>
-            <waypoints>
-                <edgeproperty id="BinClash::sb::WayPoint::0"
-                    sizeCalculated="true" type="WayPoint"
-                    userDefined="false" visible="true">
-                    <name>0</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyAttachedIntersection">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                    </strategy>
-                    <id>0</id>
-                    <specialid>1</specialid>
-                    <hidden>false</hidden>
-                </edgeproperty>
-                <edgeproperty id="BinClash::sb::WayPoint::1"
-                    sizeCalculated="true" type="WayPoint"
-                    userDefined="false" visible="true">
-                    <name>1</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyAttachedIntersection">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                    </strategy>
-                    <id>1</id>
-                    <specialid>2</specialid>
-                    <hidden>false</hidden>
-                </edgeproperty>
-            </waypoints>
-            <hidden>false</hidden>
-        </edge>
-        <edge type="HalfEdge">
-            <source>BinClash</source>
-            <target>BinStop</target>
-            <name>bp</name>
-            <properties>
-                <edgeproperty id="BinClash::bp::target::rolename"
-                    sizeCalculated="true" type="rolename"
-                    userDefined="false" visible="true">
-                    <name>bp</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                        <attached>BinClash::bp::WayPoint::1</attached>
-                        <offset_x>8</offset_x>
-                        <offset_y>8</offset_y>
-                        <placement>TOP</placement>
-                    </strategy>
-                    <hidden>false</hidden>
-                </edgeproperty>
-                <edgeproperty id="BinClash::bp::target::multiplicity"
-                    sizeCalculated="true" type="multiplicity"
-                    userDefined="false" visible="true">
-                    <name>1</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                        <attached>BinClash::bp::WayPoint::1</attached>
-                        <offset_x>8</offset_x>
-                        <offset_y>8</offset_y>
-                        <placement>BOTTOM</placement>
-                    </strategy>
-                    <hidden>false</hidden>
-                </edgeproperty>
-            </properties>
-            <waypoints>
-                <edgeproperty id="BinClash::bp::WayPoint::0"
-                    sizeCalculated="true" type="WayPoint"
-                    userDefined="false" visible="true">
-                    <name>0</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyAttachedIntersection">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                    </strategy>
-                    <id>0</id>
-                    <specialid>1</specialid>
-                    <hidden>false</hidden>
-                </edgeproperty>
-                <edgeproperty id="BinClash::bp::WayPoint::1"
-                    sizeCalculated="true" type="WayPoint"
-                    userDefined="false" visible="true">
-                    <name>1</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyAttachedIntersection">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                    </strategy>
-                    <id>1</id>
-                    <specialid>2</specialid>
-                    <hidden>false</hidden>
-                </edgeproperty>
-            </waypoints>
-            <hidden>false</hidden>
-        </edge>
-        <hidden>false</hidden>
-    </node>
-    <node height="20.0" id="SlotClash::DiamondNode" kind="association"
-        sizeCalculated="false" type="DiamondNode" width="40.0">
-        <name>SlotClash</name>
-        <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
-            <x>296.17270454658103</x>
-            <y>327.01640540846057</y>
-        </strategy>
-        <connectedNode>BinStop</connectedNode>
-        <connectedNode>RouteSlot</connectedNode>
-        <edge type="HalfEdge">
-            <source>SlotClash</source>
-            <target>BinStop</target>
-            <name>ba</name>
-            <properties>
-                <edgeproperty id="SlotClash::ba::target::rolename"
-                    sizeCalculated="true" type="rolename"
-                    userDefined="false" visible="true">
-                    <name>ba</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                        <attached>SlotClash::ba::WayPoint::1</attached>
-                        <offset_x>8</offset_x>
-                        <offset_y>8</offset_y>
-                        <placement>TOP</placement>
-                    </strategy>
-                    <hidden>false</hidden>
-                </edgeproperty>
-                <edgeproperty id="SlotClash::ba::target::multiplicity"
-                    sizeCalculated="true" type="multiplicity"
-                    userDefined="false" visible="true">
-                    <name>1</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                        <attached>SlotClash::ba::WayPoint::1</attached>
-                        <offset_x>8</offset_x>
-                        <offset_y>8</offset_y>
-                        <placement>BOTTOM</placement>
-                    </strategy>
-                    <hidden>false</hidden>
-                </edgeproperty>
-            </properties>
-            <waypoints>
-                <edgeproperty id="SlotClash::ba::WayPoint::0"
-                    sizeCalculated="true" type="WayPoint"
-                    userDefined="false" visible="true">
-                    <name>0</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyAttachedIntersection">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                    </strategy>
-                    <id>0</id>
-                    <specialid>1</specialid>
-                    <hidden>false</hidden>
-                </edgeproperty>
-                <edgeproperty id="SlotClash::ba::WayPoint::1"
-                    sizeCalculated="true" type="WayPoint"
-                    userDefined="false" visible="true">
-                    <name>1</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyAttachedIntersection">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                    </strategy>
-                    <id>1</id>
-                    <specialid>2</specialid>
-                    <hidden>false</hidden>
-                </edgeproperty>
-            </waypoints>
-            <hidden>false</hidden>
-        </edge>
-        <edge type="HalfEdge">
-            <source>SlotClash</source>
-            <target>BinStop</target>
-            <name>bb</name>
-            <properties>
-                <edgeproperty id="SlotClash::bb::target::rolename"
-                    sizeCalculated="true" type="rolename"
-                    userDefined="false" visible="true">
-                    <name>bb</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                        <attached>SlotClash::bb::WayPoint::1</attached>
-                        <offset_x>8</offset_x>
-                        <offset_y>8</offset_y>
-                        <placement>TOP</placement>
-                    </strategy>
-                    <hidden>false</hidden>
-                </edgeproperty>
-                <edgeproperty id="SlotClash::bb::target::multiplicity"
-                    sizeCalculated="true" type="multiplicity"
-                    userDefined="false" visible="true">
-                    <name>1</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                        <attached>SlotClash::bb::WayPoint::1</attached>
-                        <offset_x>8</offset_x>
-                        <offset_y>8</offset_y>
-                        <placement>BOTTOM</placement>
-                    </strategy>
-                    <hidden>false</hidden>
-                </edgeproperty>
-            </properties>
-            <waypoints>
-                <edgeproperty id="SlotClash::bb::WayPoint::0"
-                    sizeCalculated="true" type="WayPoint"
-                    userDefined="false" visible="true">
-                    <name>0</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyAttachedIntersection">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                    </strategy>
-                    <id>0</id>
-                    <specialid>1</specialid>
-                    <hidden>false</hidden>
-                </edgeproperty>
-                <edgeproperty id="SlotClash::bb::WayPoint::1"
-                    sizeCalculated="true" type="WayPoint"
-                    userDefined="true" visible="true">
-                    <name>1</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToCorner">
-                        <userOffsetX>95.88425647438794</userOffsetX>
-                        <userOffsetY>-88.0</userOffsetY>
-                        <basisDeltaX>ABSOLUTE</basisDeltaX>
-                        <deltaX>0.0</deltaX>
-                        <maxDeltaX>1.7976931348623157E308</maxDeltaX>
-                        <basisDeltaY>ABSOLUTE</basisDeltaY>
-                        <deltaY>0.0</deltaY>
-                        <maxDeltaY>1.7976931348623157E308</maxDeltaY>
-                        <corner>NORTH_WEST</corner>
-                        <relativeNodeId>BinStop</relativeNodeId>
-                    </strategy>
-                    <id>1</id>
-                    <specialid>2</specialid>
-                    <hidden>false</hidden>
-                </edgeproperty>
-            </waypoints>
-            <hidden>false</hidden>
-        </edge>
-        <edge type="HalfEdge">
-            <source>SlotClash</source>
-            <target>RouteSlot</target>
-            <name>slot</name>
-            <properties>
-                <edgeproperty id="SlotClash::slot::target::rolename"
-                    sizeCalculated="true" type="rolename"
-                    userDefined="false" visible="true">
-                    <name>slot</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                        <attached>SlotClash::slot::WayPoint::1</attached>
-                        <offset_x>8</offset_x>
-                        <offset_y>8</offset_y>
-                        <placement>TOP</placement>
-                    </strategy>
-                    <hidden>false</hidden>
-                </edgeproperty>
-                <edgeproperty id="SlotClash::slot::target::multiplicity"
-                    sizeCalculated="true" type="multiplicity"
-                    userDefined="false" visible="true">
-                    <name>1</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                        <attached>SlotClash::slot::WayPoint::1</attached>
-                        <offset_x>8</offset_x>
-                        <offset_y>8</offset_y>
-                        <placement>BOTTOM</placement>
-                    </strategy>
-                    <hidden>false</hidden>
-                </edgeproperty>
-            </properties>
-            <waypoints>
-                <edgeproperty id="SlotClash::slot::WayPoint::0"
-                    sizeCalculated="true" type="WayPoint"
-                    userDefined="false" visible="true">
-                    <name>0</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyAttachedIntersection">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                    </strategy>
-                    <id>0</id>
-                    <specialid>1</specialid>
-                    <hidden>false</hidden>
-                </edgeproperty>
-                <edgeproperty id="SlotClash::slot::WayPoint::1"
-                    sizeCalculated="true" type="WayPoint"
-                    userDefined="false" visible="true">
-                    <name>1</name>
-                    <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyAttachedIntersection">
-                        <userOffsetX>0.0</userOffsetX>
-                        <userOffsetY>0.0</userOffsetY>
-                    </strategy>
-                    <id>1</id>
-                    <specialid>2</specialid>
-                    <hidden>false</hidden>
-                </edgeproperty>
-            </waypoints>
-            <hidden>false</hidden>
-        </edge>
         <hidden>false</hidden>
     </node>
     <edge type="NodeEdge">
@@ -505,6 +87,33 @@
         <target>Stop</target>
         <name>TravelTime</name>
         <properties>
+            <edgeproperty id="TravelTime::source::rolename"
+                sizeCalculated="true" type="rolename" userDefined="true" visible="true">
+                <name>fromStop</name>
+                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
+                    <userOffsetX>6.0</userOffsetX>
+                    <userOffsetY>11.0</userOffsetY>
+                    <attached>TravelTime::WayPoint::0</attached>
+                    <offset_x>8</offset_x>
+                    <offset_y>8</offset_y>
+                    <placement>TOP</placement>
+                </strategy>
+                <hidden>false</hidden>
+            </edgeproperty>
+            <edgeproperty id="TravelTime::source::multiplicity"
+                sizeCalculated="true" type="multiplicity"
+                userDefined="false" visible="true">
+                <name>*</name>
+                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
+                    <userOffsetX>0.0</userOffsetX>
+                    <userOffsetY>0.0</userOffsetY>
+                    <attached>TravelTime::WayPoint::0</attached>
+                    <offset_x>8</offset_x>
+                    <offset_y>8</offset_y>
+                    <placement>BOTTOM</placement>
+                </strategy>
+                <hidden>false</hidden>
+            </edgeproperty>
             <edgeproperty id="TravelTime::AssociationName"
                 sizeCalculated="true" type="associationName"
                 userDefined="false" visible="true">
@@ -522,12 +131,11 @@
                 <hidden>false</hidden>
             </edgeproperty>
             <edgeproperty id="TravelTime::target::rolename"
-                sizeCalculated="true" type="rolename"
-                userDefined="false" visible="true">
+                sizeCalculated="true" type="rolename" userDefined="true" visible="true">
                 <name>toStop</name>
                 <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                    <userOffsetX>0.0</userOffsetX>
-                    <userOffsetY>0.0</userOffsetY>
+                    <userOffsetX>3.0</userOffsetX>
+                    <userOffsetY>3.0</userOffsetY>
                     <attached>TravelTime::WayPoint::4</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
@@ -546,34 +154,6 @@
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
                     <placement>BOTTOM</placement>
-                </strategy>
-                <hidden>false</hidden>
-            </edgeproperty>
-            <edgeproperty id="TravelTime::source::multiplicity"
-                sizeCalculated="true" type="multiplicity"
-                userDefined="false" visible="true">
-                <name>*</name>
-                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                    <userOffsetX>0.0</userOffsetX>
-                    <userOffsetY>0.0</userOffsetY>
-                    <attached>TravelTime::WayPoint::0</attached>
-                    <offset_x>8</offset_x>
-                    <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
-                </strategy>
-                <hidden>false</hidden>
-            </edgeproperty>
-            <edgeproperty id="TravelTime::source::rolename"
-                sizeCalculated="true" type="rolename"
-                userDefined="false" visible="true">
-                <name>fromStop</name>
-                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                    <userOffsetX>0.0</userOffsetX>
-                    <userOffsetY>0.0</userOffsetY>
-                    <attached>TravelTime::WayPoint::0</attached>
-                    <offset_x>8</offset_x>
-                    <offset_y>8</offset_y>
-                    <placement>TOP</placement>
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
@@ -700,8 +280,8 @@
             <node id="TravelTime" sizeCalculated="true" type="Class">
                 <name>TravelTime</name>
                 <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToCorner">
-                    <userOffsetX>0.0</userOffsetX>
-                    <userOffsetY>0.0</userOffsetY>
+                    <userOffsetX>57.0</userOffsetX>
+                    <userOffsetY>-49.0</userOffsetY>
                     <basisDeltaX>ABSOLUTE</basisDeltaX>
                     <deltaX>0.0</deltaX>
                     <maxDeltaX>1.7976931348623157E308</maxDeltaX>
@@ -715,81 +295,38 @@
             </node>
         </associationClass>
     </edge>
-    <edge kind="association" type="NodeEdge">
-        <source>BinClash</source>
-        <target>BinClash</target>
-        <name>BinClash</name>
-        <properties/>
-        <waypoints>
-            <edgeproperty
-                id="naryedge::BinClash::DiamondNode::BinClash::WayPoint::0"
-                sizeCalculated="true" type="WayPoint"
-                userDefined="false" visible="true">
-                <name>0</name>
-                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
-                    <x>356.58437168866396</x>
-                    <y>157.8105718374191</y>
-                </strategy>
-                <id>0</id>
-                <specialid>1</specialid>
-                <hidden>false</hidden>
-            </edgeproperty>
-            <edgeproperty
-                id="naryedge::BinClash::DiamondNode::BinClash::WayPoint::1"
-                sizeCalculated="true" type="WayPoint"
-                userDefined="false" visible="true">
-                <name>1</name>
-                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
-                    <x>386.44371155709996</x>
-                    <y>98.0</y>
-                </strategy>
-                <id>1</id>
-                <specialid>2</specialid>
-                <hidden>false</hidden>
-            </edgeproperty>
-        </waypoints>
-        <hidden>false</hidden>
-    </edge>
-    <edge kind="association" type="NodeEdge">
-        <source>SlotClash</source>
-        <target>SlotClash</target>
-        <name>SlotClash</name>
-        <properties/>
-        <waypoints>
-            <edgeproperty
-                id="naryedge::SlotClash::DiamondNode::SlotClash::WayPoint::0"
-                sizeCalculated="true" type="WayPoint"
-                userDefined="false" visible="true">
-                <name>0</name>
-                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
-                    <x>317.0156173506697</x>
-                    <y>327.4378618105049</y>
-                </strategy>
-                <id>0</id>
-                <specialid>1</specialid>
-                <hidden>false</hidden>
-            </edgeproperty>
-            <edgeproperty
-                id="naryedge::SlotClash::DiamondNode::SlotClash::WayPoint::1"
-                sizeCalculated="true" type="WayPoint"
-                userDefined="false" visible="true">
-                <name>1</name>
-                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyFixed">
-                    <x>280.6727351420382</x>
-                    <y>378.200777096884</y>
-                </strategy>
-                <id>1</id>
-                <specialid>2</specialid>
-                <hidden>false</hidden>
-            </edgeproperty>
-        </waypoints>
-        <hidden>false</hidden>
-    </edge>
     <edge type="NodeEdge">
         <source>BinStop</source>
         <target>RouteSlot</target>
         <name>CollectsAt</name>
         <properties>
+            <edgeproperty id="CollectsAt::source::rolename"
+                sizeCalculated="true" type="rolename" userDefined="true" visible="true">
+                <name>binStop</name>
+                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
+                    <userOffsetX>-1.0</userOffsetX>
+                    <userOffsetY>-10.0</userOffsetY>
+                    <attached>CollectsAt::WayPoint::0</attached>
+                    <offset_x>8</offset_x>
+                    <offset_y>8</offset_y>
+                    <placement>TOP</placement>
+                </strategy>
+                <hidden>false</hidden>
+            </edgeproperty>
+            <edgeproperty id="CollectsAt::source::multiplicity"
+                sizeCalculated="true" type="multiplicity"
+                userDefined="false" visible="true">
+                <name>*</name>
+                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
+                    <userOffsetX>0.0</userOffsetX>
+                    <userOffsetY>0.0</userOffsetY>
+                    <attached>CollectsAt::WayPoint::0</attached>
+                    <offset_x>8</offset_x>
+                    <offset_y>8</offset_y>
+                    <placement>BOTTOM</placement>
+                </strategy>
+                <hidden>false</hidden>
+            </edgeproperty>
             <edgeproperty id="CollectsAt::AssociationName"
                 sizeCalculated="true" type="associationName"
                 userDefined="false" visible="true">
@@ -806,6 +343,19 @@
                 </strategy>
                 <hidden>false</hidden>
             </edgeproperty>
+            <edgeproperty id="CollectsAt::target::rolename"
+                sizeCalculated="true" type="rolename" userDefined="true" visible="true">
+                <name>routeSlot</name>
+                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
+                    <userOffsetX>3.0</userOffsetX>
+                    <userOffsetY>-10.0</userOffsetY>
+                    <attached>CollectsAt::WayPoint::1</attached>
+                    <offset_x>8</offset_x>
+                    <offset_y>8</offset_y>
+                    <placement>TOP</placement>
+                </strategy>
+                <hidden>false</hidden>
+            </edgeproperty>
             <edgeproperty id="CollectsAt::target::multiplicity"
                 sizeCalculated="true" type="multiplicity"
                 userDefined="false" visible="true">
@@ -814,48 +364,6 @@
                     <userOffsetX>0.0</userOffsetX>
                     <userOffsetY>0.0</userOffsetY>
                     <attached>CollectsAt::WayPoint::1</attached>
-                    <offset_x>8</offset_x>
-                    <offset_y>8</offset_y>
-                    <placement>BOTTOM</placement>
-                </strategy>
-                <hidden>false</hidden>
-            </edgeproperty>
-            <edgeproperty id="CollectsAt::target::rolename"
-                sizeCalculated="true" type="rolename"
-                userDefined="false" visible="true">
-                <name>routeSlot</name>
-                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                    <userOffsetX>0.0</userOffsetX>
-                    <userOffsetY>0.0</userOffsetY>
-                    <attached>CollectsAt::WayPoint::1</attached>
-                    <offset_x>8</offset_x>
-                    <offset_y>8</offset_y>
-                    <placement>TOP</placement>
-                </strategy>
-                <hidden>false</hidden>
-            </edgeproperty>
-            <edgeproperty id="CollectsAt::source::rolename"
-                sizeCalculated="true" type="rolename"
-                userDefined="false" visible="true">
-                <name>binStop</name>
-                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                    <userOffsetX>0.0</userOffsetX>
-                    <userOffsetY>0.0</userOffsetY>
-                    <attached>CollectsAt::WayPoint::0</attached>
-                    <offset_x>8</offset_x>
-                    <offset_y>8</offset_y>
-                    <placement>TOP</placement>
-                </strategy>
-                <hidden>false</hidden>
-            </edgeproperty>
-            <edgeproperty id="CollectsAt::source::multiplicity"
-                sizeCalculated="true" type="multiplicity"
-                userDefined="false" visible="true">
-                <name>*</name>
-                <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToAttached">
-                    <userOffsetX>0.0</userOffsetX>
-                    <userOffsetY>0.0</userOffsetY>
-                    <attached>CollectsAt::WayPoint::0</attached>
                     <offset_x>8</offset_x>
                     <offset_y>8</offset_y>
                     <placement>BOTTOM</placement>
@@ -914,8 +422,8 @@
             <node id="CollectsAt" sizeCalculated="true" type="Class">
                 <name>CollectsAt</name>
                 <strategy type="org.tzi.use.gui.views.diagrams.elements.positioning.StrategyRelativeToCorner">
-                    <userOffsetX>0.0</userOffsetX>
-                    <userOffsetY>-18.0</userOffsetY>
+                    <userOffsetX>-7.0</userOffsetX>
+                    <userOffsetY>-8.0</userOffsetY>
                     <basisDeltaX>ABSOLUTE</basisDeltaX>
                     <deltaX>0.0</deltaX>
                     <maxDeltaX>1.7976931348623157E308</maxDeltaX>
